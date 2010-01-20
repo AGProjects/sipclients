@@ -1,10 +1,14 @@
 
-Clients
--------
+SIP Clients
+-----------
 
-Included with the library, a set of command line tools are available for
-setting up audio, instant messaging (IM) and file transfer sessions, publish
-and subscribe to presence or other type of events.
+To test SIP SIMPLE client SDK (http://sipsimpleclient.com), a set of command
+line tools are provided by this package for setting up Audio, Instant
+Messaging (IM) and File Transfer sessions, Publish and Subscribe for
+presence or other events.
+
+The SIP clients can be used in a terminal window on Linux and MacOSX
+operating systems.
 
 You need a SIP account from a service provider or to setup your own SIP
 infrastructure using the following elements:
@@ -13,32 +17,28 @@ infrastructure using the following elements:
  * OpenXCAP  from [http://openxcap.org http://openxcap.org]
  * MSRPRelay from [http://msrprelay.org http://msrprelay.org]
 
-A test SIP account with all SIP SIMPLE client features can be obtained for
+A SIP account with all SIP SIMPLE client SDK features can be obtained for
 free from http://sip2sip.info.
 
+The following SIP clients are available:
 
-Command line tools
-------------------
-
- * sip-audio-session - Setup a voice audio session (Voice over IP)
- * sip-auto-publish-presence - Publish randomly generated rich presence
- * sip-message - Send/receive text in page mode using SIP MESSAGE method
- * sip-publish-presence - Publish presence to a SIP Presence Agent
+ * sip-settings - Manage the settings used by all clients
  * sip-register - REGISTER a SIP end-point with a SIP Registrar
- * sip-session - Fully featured console SIP client with support for audio sessions, 
-   Instant Messaging and File Transfer.
- * sip-settings - Manage settings used by the command line tools
- * sip-subscribe-mwi - SUBSCRIBE to Message Waiting Information (MWI)
- * sip-subscribe-presence - SUBSCRIBE to presence information
- * sip-subscribe-rls - SUBSCRIBE to lists managed by Resource List Server
+ * sip-session - Supports multiple Audio, IM and File Transfers sessions
+ * sip-audio-session - Setup an Audio session
+ * sip-message - Exchange text in page mode using SIP MESSAGE method
+ * sip-publish-presence - Publish presence event to a SIP Presence Agent
  * sip-subscribe-winfo - SUBSCRIBE to watcher list on a SIP Presence Agent
- * sip-subscribe-xcap-diff - SUBSCRIBE to XCAP resources changes (xcap-diff)
- * xcap-dialog-rules - Manage the content of a dialog-rules XCAP document
- * xcap-directory - List documents stored on a XCAP server
- * xcap-icon - Manage icon document stored on XCAP
+ * sip-subscribe-presence - SUBSCRIBE to presence event
+ * sip-auto-publish-presence - Publish randomly generated presence event
+ * sip-subscribe-rls - SUBSCRIBE to lists managed by a SIP Resource List Server
+ * sip-subscribe-xcap-diff - SUBSCRIBE to XCAP resources changes
+ * sip-subscribe-mwi - SUBSCRIBE to Message Waiting Indication on a Voicemail server
+ * xcap-directory - List documents stored on a XCAP server for a given user
  * xcap-pres-rules - Manage the content of a pres-rules XCAP document
+ * xcap-dialog-rules - Manage the content of a dialog-rules XCAP document
+ * xcap-icon - Manage an icon document stored on the XCAP server
  * xcap-rls-services - Manage the content of a rls-services XCAP document
-
 
 For detailed information about how to setup and use the command line tools
 go to http://sipsimpleclient.com/wiki/SipTesting
