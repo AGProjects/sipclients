@@ -3,8 +3,14 @@
 from distutils.core import setup
 import os
 import glob
+import platform
+import sys
 
 import sipclient
+
+
+if platform.system() == 'Darwin':
+    sys.prefix = '/usr/local'
 
 
 setup(name         = "sipclients",
