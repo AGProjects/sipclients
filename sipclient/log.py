@@ -77,17 +77,22 @@ class Logger(object):
         self._event_queue.stop()
         self._event_queue.join()
 
-        # sip trace
+        # close sip trace file
         if self._siptrace_file is not None:
             self._siptrace_file.close()
             self._siptrace_file = None
 
-        # pjsip trace
+        # close msrp trace file
+        if self._msrptrace_file is not None:
+            self._msrptrace_file.close()
+            self._msrptrace_file = None
+
+        # close pjsip trace file
         if self._pjsiptrace_file is not None:
             self._pjsiptrace_file.close()
             self._pjsiptrace_file = None
 
-        # notifications trace
+        # close notifications trace file
         if self._notifications_file is not None:
             self._notifications_file.close()
             self._notifications_file = None
