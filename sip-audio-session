@@ -302,9 +302,15 @@ class SIPAudioApplication(SIPApplication):
         inbound_ringtone = self.account.sounds.audio_inbound.sound_file if self.account.sounds.audio_inbound is not None else None
         outbound_ringtone = settings.sounds.audio_outbound
         if inbound_ringtone:
-            self.wave_inbound_ringtone = SilenceableWaveFile(self.alert_conference_bridge, inbound_ringtone.path.normalized, volume=inbound_ringtone.volume, loop_count=0, pause_time=2)
+            try:
+                self.wave_inbound_ringtone = SilenceableWaveFile(self.alert_conference_bridge, inbound_ringtone.path.normalized, volume=inbound_ringtone.volume, loop_count=0, pause_time=2)
+            except ValueError, e:
+                self.output.put('Failed to load inbound ringtone: %s\n' % e)
         if outbound_ringtone:
-            self.wave_outbound_ringtone = SilenceableWaveFile(self.alert_conference_bridge, outbound_ringtone.path.normalized, volume=outbound_ringtone.volume, loop_count=0, pause_time=2)
+            try:
+                self.wave_outbound_ringtone = SilenceableWaveFile(self.alert_conference_bridge, outbound_ringtone.path.normalized, volume=outbound_ringtone.volume, loop_count=0, pause_time=2)
+            except ValueError, e:
+                self.output.put('Failed to load inbound ringtone: %s\n' % e)
         self.tone_ringtone = PersistentTones(self.voice_conference_bridge, [(1000, 400, 200), (0, 0, 50) , (1000, 600, 200)], 6)
         self.hold_tone = PersistentTones(self.voice_conference_bridge, [(300, 0, 100), (0,0,100), (300, 0, 100)], 30, volume=50)
 
@@ -455,12 +461,16 @@ class SIPAudioApplication(SIPApplication):
                     audio_stream.send_dtmf(digit)
                     filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
                     wave_file = WaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
-                    notification_center.add_observer(self, sender=wave_file)
-                    wave_file.start()
-                    audio_slot = audio_stream.slot
-                    if self.active_session.account.rtp.inband_dtmf and audio_slot is not None:
-                        self.voice_conference_bridge.connect_slots(wave_file.slot, audio_slot)
-                    self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
+                    try:
+                        wave_file.start()
+                    except SIPCoreError, e:
+                        self.output.put('Failed to play dtmf: %s\n' % e)
+                    else:
+                        notification_center.add_observer(self, sender=wave_file)
+                        audio_slot = audio_stream.slot
+                        if self.active_session.account.rtp.inband_dtmf and audio_slot is not None:
+                            self.voice_conference_bridge.connect_slots(wave_file.slot, audio_slot)
+                        self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
         elif notification.data.input in ('\x1b[A', '\x1b[D') and len(self.started_sessions) > 0: # UP and LEFT
             if self.active_session is None:
                 self.active_session = self.started_sessions[0]
@@ -705,7 +715,6 @@ class SIPAudioApplication(SIPApplication):
                 self.hangup_timers[id(session)] = timer
 
     def _NH_SIPSessionWillEnd(self, notification):
-        notification_center = NotificationCenter()
         session = notification.sender
         if id(session) in self.hangup_timers:
             timer = self.hangup_timers[id(session)]
@@ -713,10 +722,12 @@ class SIPAudioApplication(SIPApplication):
                 timer.cancel()
             del self.hangup_timers[id(session)]
 
-        hangup_tone = WaveFile(self.voice_conference_bridge, ResourcePath('sounds/hangup_tone.wav').normalized)
-        notification_center.add_observer(self, sender=hangup_tone)
-        hangup_tone.start()
-        self.voice_conference_bridge.connect_slots(hangup_tone.slot, 0)
+        try:
+            hangup_tone = SilenceableWaveFile(self.voice_conference_bridge, ResourcePath('sounds/hangup_tone.wav').normalized)
+        except ValueError, e:
+            self.output.put('Failed to play hangup tone: %s\n' % e)
+        else:
+            hangup_tone.start()
 
     def _NH_SIPSessionDidEnd(self, notification):
         session = notification.sender
@@ -815,13 +826,14 @@ class SIPAudioApplication(SIPApplication):
             session.reject_proposal(488)
 
     def _NH_AudioStreamGotDTMF(self, notification):
-        notification_center = NotificationCenter()
         digit = notification.data.digit
         filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
-        wave_file = WaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
-        notification_center.add_observer(self, sender=wave_file)
-        wave_file.start()
-        self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
+        try:
+            wave_file = SilenceableWaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
+        except ValueError, e:
+            self.output.put('Failed to play dtmf: %s\n' % e)
+        else:
+            wave_file.start()
 
     def _NH_AudioStreamDidChangeHoldState(self, notification):
         if notification.data.on_hold:
@@ -848,11 +860,7 @@ class SIPAudioApplication(SIPApplication):
 
     def _NH_WaveFileDidFinishPlaying(self, notification):
         notification_center = NotificationCenter()
-        wave_file = notification.sender
-        notification_center.remove_observer(self, sender=wave_file)
-        for src_slot, dst_slot in self.voice_conference_bridge.connected_slots:
-            if src_slot == wave_file.slot:
-                self.voice_conference_bridge.disconnect_slots(src_slot, dst_slot)
+        notification_center.remove_observer(self, sender=notification.sender)
 
     def _NH_DefaultAudioDeviceDidChange(self, notification):
         SIPApplication._NH_DefaultAudioDeviceDidChange(self, notification)

@@ -185,9 +185,12 @@ class OutgoingCallInitializer(object):
         ui = UI()
         ringtone = settings.sounds.audio_outbound
         if ringtone:
-            self.wave_ringtone = SilenceableWaveFile(application.voice_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
-        if self.wave_ringtone:
-            self.wave_ringtone.start()
+            try:
+                self.wave_ringtone = SilenceableWaveFile(application.voice_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
+            except ValueError, e:
+                send_notice('Failed to play ringtone: %s' % e)
+            else:
+                self.wave_ringtone.start()
         ui.status = 'Ringing...'
 
     def _NH_SIPSessionWillStart(self, notification):
@@ -268,8 +271,12 @@ class IncomingCallInitializer(object):
             if IncomingCallInitializer.sessions == 1:
                 ringtone = self.session.account.sounds.audio_inbound.sound_file if self.session.account.sounds.audio_inbound is not None else None
                 if ringtone:
-                    self.wave_ringtone = SilenceableWaveFile(application.alert_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
-                    self.wave_ringtone.start()
+                    try:
+                        self.wave_ringtone = SilenceableWaveFile(application.alert_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
+                    except ValueError, e:
+                        send_notice('Failed to play ringtone: %s' % e)
+                    else:
+                        self.wave_ringtone.start()
         elif IncomingCallInitializer.tone_ringtone is None:
             IncomingCallInitializer.tone_ringtone = PersistentTones(application.voice_conference_bridge, [(1000, 400, 200), (0, 0, 50) , (1000, 600, 200)], 6)
             IncomingCallInitializer.tone_ringtone.start()
@@ -609,9 +616,12 @@ class OutgoingTransferHandler(object):
         ui = UI()
         ringtone = settings.sounds.audio_outbound
         if ringtone:
-            self.wave_ringtone = SilenceableWaveFile(application.voice_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
-        if self.wave_ringtone:
-            self.wave_ringtone.start()
+            try:
+                self.wave_ringtone = SilenceableWaveFile(application.voice_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
+            except ValueError, e:
+                send_notice('Failed to play ringtone: %s' % e)
+            else:
+                self.wave_ringtone.start()
         ui.status = 'Ringing...'
 
     def _NH_SIPSessionWillStart(self, notification):
@@ -730,8 +740,12 @@ class IncomingTransferHandler(object):
             if IncomingTransferHandler.sessions == 1:
                 ringtone = self.session.account.sounds.audio_inbound.sound_file if self.session.account.sounds.audio_inbound is not None else None
                 if ringtone:
-                    self.wave_ringtone = SilenceableWaveFile(application.alert_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
-                    self.wave_ringtone.start()
+                    try:
+                        self.wave_ringtone = SilenceableWaveFile(application.alert_conference_bridge, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
+                    except ValueError, e:
+                        send_notice('Failed to play ringtone: %s' % e)
+                    else:
+                        self.wave_ringtone.start()
         elif IncomingTransferHandler.tone_ringtone is None:
             IncomingTransferHandler.tone_ringtone = PersistentTones(application.voice_conference_bridge, [(1000, 400, 200), (0, 0, 50) , (1000, 600, 200)], 6)
             IncomingTransferHandler.tone_ringtone.start()
@@ -1150,7 +1164,6 @@ class SIPSessionApplication(SIPApplication):
                 self.hangup_timers[id(session)] = timer
 
     def _NH_SIPSessionWillEnd(self, notification):
-        notification_center = NotificationCenter()
         session = notification.sender
         if id(session) in self.hangup_timers:
             timer = self.hangup_timers[id(session)]
@@ -1158,10 +1171,12 @@ class SIPSessionApplication(SIPApplication):
                 timer.cancel()
             del self.hangup_timers[id(session)]
 
-        hangup_tone = WaveFile(self.voice_conference_bridge, ResourcePath('sounds/hangup_tone.wav').normalized)
-        notification_center.add_observer(self, sender=hangup_tone)
-        hangup_tone.start()
-        self.voice_conference_bridge.connect_slots(hangup_tone.slot, 0)
+        try:
+            hangup_tone = SilenceableWaveFile(self.voice_conference_bridge, ResourcePath('sounds/hangup_tone.wav').normalized)
+        except ValueError, e:
+            send_notice('Failed to play hangup tone: %s' % e)
+        else:
+            hangup_tone.start()
 
     def _NH_SIPSessionDidEnd(self, notification):
         notification_center = NotificationCenter()
@@ -1280,10 +1295,12 @@ class SIPSessionApplication(SIPApplication):
     def _NH_AudioStreamGotDTMF(self, notification):
         digit = notification.data.digit
         filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
-        wave_file = WaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
-        NotificationCenter().add_observer(self, sender=wave_file)
-        wave_file.start()
-        self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
+        try:
+            wave_file = SilenceableWaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
+        except ValueError, e:
+            send_notice('Failed to play dtmf: %s' % e)
+        else:
+            wave_file.start()
         send_notice('Got DMTF %s' % notification.data.digit)
 
     def _NH_AudioStreamDidChangeHoldState(self, notification):
@@ -1365,11 +1382,7 @@ class SIPSessionApplication(SIPApplication):
             send_notice('Alert device has been switched to: %s' % self.alert_conference_bridge.real_output_device)
 
     def _NH_WaveFileDidFinishPlaying(self, notification):
-        wave_file = notification.sender
-        NotificationCenter().remove_observer(self, sender=wave_file)
-        for src_slot, dst_slot in self.voice_conference_bridge.connected_slots:
-            if src_slot == wave_file.slot:
-                self.voice_conference_bridge.disconnect_slots(src_slot, dst_slot)
+        NotificationCenter().remove_observer(self, sender=notification.sender)
 
     # command handlers
     #
@@ -1706,13 +1719,17 @@ class SIPSessionApplication(SIPApplication):
                     audio_stream.send_dtmf(digit)
                     filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
                     wave_file = WaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
-                    NotificationCenter().add_observer(self, sender=wave_file)
-                    wave_file.start()
-                    audio_slot = audio_stream.slot
-                    if self.active_session.account.rtp.inband_dtmf and audio_slot is not None:
-                        self.voice_conference_bridge.connect_slots(wave_file.slot, audio_slot)
-                    self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
-                    api.sleep(0.3)
+                    try:
+                        wave_file.start()
+                    except SIPCoreError, e:
+                        send_notice('Failed to play dtmf: %s' % e)
+                    else:
+                        NotificationCenter().add_observer(self, sender=wave_file)
+                        audio_slot = audio_stream.slot
+                        if self.active_session.account.rtp.inband_dtmf and audio_slot is not None:
+                            self.voice_conference_bridge.connect_slots(wave_file.slot, audio_slot)
+                        self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
+                        api.sleep(0.3)
 
     def _CH_record(self, state='toggle'):
         if self.active_session is None:
