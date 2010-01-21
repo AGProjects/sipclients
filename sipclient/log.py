@@ -14,7 +14,6 @@ import os
 import sys
 
 from pprint import pformat
-from threading import RLock
 
 from application import log
 from application.notification import IObserver, NotificationCenter
@@ -57,77 +56,73 @@ class Logger(object):
         self._notifications_error = False
 
         self._event_queue = EventQueue(handler=self._process_notification, name='Log handling')
-        self._lock = RLock()
         self._log_directory_error = False
 
     def start(self):
-        with self._lock:
-            # start the thread processing the notifications
-            self._event_queue.start()
+        # try to create the log directory
+        try:
+            self._init_log_directory()
+        except Exception:
+            pass
 
-            # register to receive log notifications
-            notification_center = NotificationCenter()
-            notification_center.add_observer(self)
+        # register to receive log notifications
+        notification_center = NotificationCenter()
+        notification_center.add_observer(self)
 
-            # try to create the log directory
-            try:
-                self._init_log_directory()
-            except Exception:
-                pass
+        # start the thread processing the notifications
+        self._event_queue.start()
 
     def stop(self):
-        with self._lock:
-            # stop the thread processing the notifications
-            self._event_queue.stop()
-            self._event_queue.join()
+        # stop the thread processing the notifications
+        self._event_queue.stop()
+        self._event_queue.join()
 
-            # sip trace
-            if self._siptrace_file is not None:
-                self._siptrace_file.close()
-                self._siptrace_file = None
+        # sip trace
+        if self._siptrace_file is not None:
+            self._siptrace_file.close()
+            self._siptrace_file = None
 
-            # pjsip trace
-            if self._pjsiptrace_file is not None:
-                self._pjsiptrace_file.close()
-                self._pjsiptrace_file = None
+        # pjsip trace
+        if self._pjsiptrace_file is not None:
+            self._pjsiptrace_file.close()
+            self._pjsiptrace_file = None
 
-            # notifications trace
-            if self._notifications_file is not None:
-                self._notifications_file.close()
-                self._notifications_file = None
+        # notifications trace
+        if self._notifications_file is not None:
+            self._notifications_file.close()
+            self._notifications_file = None
 
-            # unregister from receiving notifications
-            notification_center = NotificationCenter()
-            notification_center.remove_observer(self)
+        # unregister from receiving notifications
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self)
 
     def handle_notification(self, notification):
         self._event_queue.put(notification)
 
     def _process_notification(self, notification):
         settings = SIPSimpleSettings()
-        with self._lock:
-            handler = getattr(self, '_NH_%s' % notification.name, None)
-            if handler is not None:
-                handler(notification)
+        handler = getattr(self, '_NH_%s' % notification.name, None)
+        if handler is not None:
+            handler(notification)
 
-            handler = getattr(self, '_LH_%s' % notification.name, None)
-            if handler is not None:
-                handler(notification)
+        handler = getattr(self, '_LH_%s' % notification.name, None)
+        if handler is not None:
+            handler(notification)
 
-            if notification.name not in ('SIPEngineLog', 'SIPEngineSIPTrace') and (self.notifications_to_stdout or settings.logs.trace_notifications):
-                message = 'Notification name=%s sender=%s' % (notification.name, notification.sender)
-                if notification.data is not None:
-                    message += '\n%s' % pformat(notification.data)
-                if self.notifications_to_stdout:
-                    print '%s: %s' % (datetime.datetime.now(), message)
-                if settings.logs.trace_notifications:
-                    try:
-                        self._init_log_file('notifications')
-                    except Exception:
-                        pass
-                    else:
-                        self._notifications_file.write('%s [%s %d]: %s\n' % (datetime.datetime.now(), os.path.basename(sys.argv[0]).rstrip('.py'), os.getpid(), message))
-                        self._notifications_file.flush()
+        if notification.name not in ('SIPEngineLog', 'SIPEngineSIPTrace') and (self.notifications_to_stdout or settings.logs.trace_notifications):
+            message = 'Notification name=%s sender=%s' % (notification.name, notification.sender)
+            if notification.data is not None:
+                message += '\n%s' % pformat(notification.data)
+            if self.notifications_to_stdout:
+                print '%s: %s' % (datetime.datetime.now(), message)
+            if settings.logs.trace_notifications:
+                try:
+                    self._init_log_file('notifications')
+                except Exception:
+                    pass
+                else:
+                    self._notifications_file.write('%s [%s %d]: %s\n' % (datetime.datetime.now(), os.path.basename(sys.argv[0]).rstrip('.py'), os.getpid(), message))
+                    self._notifications_file.flush()
 
     # notification handlers
     #
