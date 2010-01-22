@@ -451,6 +451,7 @@ class IncomingProposalHandler(object):
         if IncomingProposalHandler.tone_ringtone is None:
             IncomingProposalHandler.tone_ringtone = PersistentTones(application.voice_conference_bridge, [(1000, 400, 200), (0, 0, 50) , (1000, 600, 200)], 6)
             IncomingProposalHandler.tone_ringtone.start()
+        self.session.send_ring_indication()
 
         # ask question
         identity = str(self.session.remote_identity.uri)
