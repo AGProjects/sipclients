@@ -419,12 +419,22 @@ class OutgoingProposalHandler(object):
     def _NH_SIPSessionGotAcceptProposal(self, notification):
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=self.session)
+        application = SIPSessionApplication()
+        application.sessions_with_proposals.remove(notification.sender)
         send_notice('Proposal accepted')
 
     def _NH_SIPSessionGotRejectProposal(self, notification):
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=self.session)
-        send_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
+        application = SIPSessionApplication()
+        application.sessions_with_proposals.remove(notification.sender)
+        
+        ui = UI()
+        ui.status = None
+        if notification.data.code == 487:
+            send_notice('Proposal cancelled (%d %s)' % (notification.data.code, notification.data.reason))
+        else:
+            send_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
 
     def _NH_SIPSessionDidEnd(self, notification):
         notification_center = NotificationCenter()
@@ -488,6 +498,8 @@ class IncomingProposalHandler(object):
         notification_center = NotificationCenter()
         session = notification.sender
         notification_center.remove_observer(self, sender=session)
+        application = SIPSessionApplication()
+        application.sessions_with_proposals.remove(notification.sender)
         IncomingProposalHandler.sessions -= 1
 
         ui = UI()
@@ -498,11 +510,25 @@ class IncomingProposalHandler(object):
         notification_center = NotificationCenter()
         session = notification.sender
         notification_center.remove_observer(self, sender=session)
+        application = SIPSessionApplication()
+        application.sessions_with_proposals.remove(notification.sender)
         IncomingProposalHandler.sessions -= 1
 
         ui = UI()
         ui.status = None
-        send_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
+        if notification.data.code == 487:
+            send_notice('Proposal cancelled (%d %s)' % (notification.data.code, notification.data.reason))
+        else:
+            send_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
+
+        if IncomingProposalHandler.tone_ringtone:
+            IncomingProposalHandler.tone_ringtone.stop()
+            IncomingProposalHandler.tone_ringtone = None
+
+        if self.question is not None:
+            notification_center.remove_observer(self, sender=self.question)
+            ui.remove_question(self.question)
+            self.question = None
 
     def _NH_SIPSessionHadProposalFailure(self, notification):
         notification_center = NotificationCenter()
@@ -898,6 +924,7 @@ class SIPSessionApplication(SIPApplication):
         self.active_session = None
         self.outgoing_session = None
         self.connected_sessions = []
+        self.sessions_with_proposals = set()
         self.hangup_timers = {}
         self.registration_succeeded = False
         self.stopped_event = Event()
@@ -1269,6 +1296,7 @@ class SIPSessionApplication(SIPApplication):
                 self.ignore_local_unhold = False
 
     def _NH_SIPSessionGotProposal(self, notification):
+        self.sessions_with_proposals.add(notification.sender)
         if notification.data.originator == 'remote':
             proposal_handler = IncomingProposalHandler(notification.sender)
             proposal_handler.start()
@@ -1692,8 +1720,12 @@ class SIPSessionApplication(SIPApplication):
     def _CH_eof(self):
         ui = UI()
         if self.active_session is not None:
-            ui.status = 'Ending SIP session...'
-            self.active_session.end()
+            if self.active_session in self.sessions_with_proposals:
+                ui.status = 'Cancelling proposal...'
+                self.active_session.cancel_proposal()
+            else:
+                ui.status = 'Ending SIP session...'
+                self.active_session.end()
         elif self.outgoing_session is not None:
             ui.status = 'Cancelling SIP session...'
             self.outgoing_session.end()
