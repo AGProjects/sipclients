@@ -1371,7 +1371,7 @@ class SIPSessionApplication(SIPApplication):
             else:
                 remote_identity = str(cpim_identity.uri)
         else:
-            msrp_chat = notification.data.sender
+            msrp_chat = notification.sender
             if msrp_chat.remote_identity.display_name:
                 remote_identity = msrp_chat.remote_identity.display_name
             else:
