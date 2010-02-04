@@ -30,7 +30,7 @@ setup(name         = "sipclients",
           "Operating System :: OS Independent",
           "Programming Language :: Python"
       ],
-      packages     = ["sipclient", "sipclient.configuration"],
+      packages   = ["sipclient", "sipclient.configuration"],
       data_files = [('share/sipclients/sounds', glob.glob(os.path.join('resources', 'sounds', '*.wav')))],
       scripts = ["sip-audio-session",
                  "sip-auto-publish-presence",
