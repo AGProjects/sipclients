@@ -144,7 +144,7 @@ class RegistrationApplication(SIPApplication):
                 self.stop()
                 return
             elif len(possible_accounts) == 0:
-                self.output.put('No enabled account which matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+                self.output.put('No enabled account that matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
                 self.output.stop()
                 self.stop()
                 return
@@ -246,7 +246,7 @@ class RegistrationApplication(SIPApplication):
 
 
 if __name__ == "__main__":
-    description = 'This script will register a SIP account to a SIP registrar and refresh it while the program is running. When Ctrl+D is pressed it will unregister.'
+    description = 'This script registers the contact address of the given SIP account to the SIP registrar and refresh it while the program is running. When Ctrl+D is pressed it will unregister.'
     usage = '%prog [options]'
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help

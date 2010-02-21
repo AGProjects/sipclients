@@ -64,7 +64,7 @@ def do_xcap_directory(account_name):
     try:
         ConfigurationManager().start(FileBackend(config_filename))
     except ConfigurationError, e:
-        raise RuntimeError("failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
+        raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
     account_manager = AccountManager()
     account_manager.load_accounts()
 
@@ -75,14 +75,16 @@ def do_xcap_directory(account_name):
         if len(possible_accounts) > 1:
             raise RuntimeError("More than one account exists which matches %s: %s" % (account_name, ", ".join(sorted(account.id for account in possible_accounts))))
         if len(possible_accounts) == 0:
-            raise RuntimeError("No enabled account which matches %s was found. Available and enabled accounts: %s" % (account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+            raise RuntimeError("No enabled account that matches %s was found. Available and enabled accounts: %s" % (account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
         account = possible_accounts[0]
     if account is None:
-        raise RuntimeError("unknown account %s. Available accounts: %s" % (account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
+        raise RuntimeError("Unknown account %s. Available accounts: %s" % (account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
     elif not account.enabled:
-        raise RuntimeError("account %s is not enabled" % account.id)
+        raise RuntimeError("Account %s is not enabled" % account.id)
     elif account == BonjourAccount():
-        raise RuntimeError("cannot use bonjour account for showing xcap-directory")
+        raise RuntimeError("Cannot use bonjour account for showing xcap-directory")
+    elif not account.xcap.enabled:
+        raise RuntimeError("XCAP is not enabled for account %s" % account.id)
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
 
@@ -93,7 +95,7 @@ def do_xcap_directory(account_name):
 
 if __name__ == "__main__":
     retval = {}
-    description = "This example script will use the specified SIP account to get it's XCAP directory. The program will quit when CTRL+D is pressed."
+    description = "This script lists all the files stored in the XCAP server for the given SIP account. The program will quit when CTRL+D is pressed."
     usage = "%prog [options]"
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help

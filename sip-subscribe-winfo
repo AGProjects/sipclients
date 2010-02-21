@@ -136,7 +136,7 @@ class WinfoApplication(object):
         try:
             configuration.start(FileBackend(config_filename))
         except ConfigurationError, e:
-            raise RuntimeError("failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
+            raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
         account_manager.load_accounts()
         if self.account_name is None:
             self.account = account_manager.default_account
@@ -145,16 +145,16 @@ class WinfoApplication(object):
             if len(possible_accounts) > 1:
                 raise RuntimeError("More than one account exists which matches %s: %s" % (self.account_name, ", ".join(sorted(account.id for account in possible_accounts))))
             if len(possible_accounts) == 0:
-                raise RuntimeError("No enabled account which matches %s was found. Available and enabled accounts: %s" % (self.account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+                raise RuntimeError("No enabled account that matches %s was found. Available and enabled accounts: %s" % (self.account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
             self.account = possible_accounts[0]
         if self.account is None:
-            raise RuntimeError("unknown account %s. Available accounts: %s" % (self.account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
+            raise RuntimeError("Unknown account %s. Available accounts: %s" % (self.account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
         elif self.account == BonjourAccount():
-            raise RuntimeError("cannot use bonjour account for watcherinfo subscription")
-        elif not self.account.presence.enable_subscribe_winfo:
-            raise RuntimeError("subscription for watcher info is not enabled for account %s" % self.account.id)
+            raise RuntimeError("Cannot use bonjour account for watcherinfo subscription")
+        elif not self.account.presence.enabled:
+            raise RuntimeError("Presence is not enabled for account %s" % self.account.id)
         elif not self.account.xcap.enabled:
-            raise RuntimeError("XCAP root is not enabled for account %s" % self.account.id)
+            raise RuntimeError("XCAP is not enabled for account %s" % self.account.id)
         elif self.account.xcap.xcap_root is None:
             raise RuntimeError("XCAP root is not defined for account %s" % self.account.id)
         for account in account_manager.iter_accounts():
@@ -539,7 +539,7 @@ class WinfoApplication(object):
 
 
 if __name__ == "__main__":
-    description = "This script displays the current presence rules, SUBSCRIBEs to the presence.winfo event of itself and prompts the user to update the presence rules document when a new watcher is in 'pending'/'waiting' state. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
+    description = "This script displays the content of the presence rules XCAP document, subscribes to the presence.winfo event package and prompts the user to update the presence rules document when a new watcher is in 'pending'/'waiting' state. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
     usage = "%prog [options] [target-user@target-domain.com]"
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help

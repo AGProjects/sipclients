@@ -132,14 +132,16 @@ class SubscriptionApplication(object):
             if len(possible_accounts) > 1:
                 raise RuntimeError("More than one account exists which matches %s: %s" % (self.account_name, ", ".join(sorted(account.id for account in possible_accounts))))
             if len(possible_accounts) == 0:
-                raise RuntimeError("No enabled account which matches %s was found. Available and enabled accounts: %s" % (self.account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+                raise RuntimeError("No enabled account that matches %s was found. Available and enabled accounts: %s" % (self.account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
             self.account = possible_accounts[0]
         if self.account is None:
-            raise RuntimeError("unknown account %s. Available accounts: %s" % (self.account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
+            raise RuntimeError("Unknown account %s. Available accounts: %s" % (self.account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
         elif self.account == BonjourAccount():
-            raise RuntimeError("cannot use bonjour account for presence subscription")
-        elif not self.account.presence.enable_subscribe_presence:
-            raise RuntimeError("presence subscriptions are not enabled for account %s" % self.account.id)
+            raise RuntimeError("Cannot use bonjour account for presence subscription")
+        elif not self.account.presence.enabled:
+            raise RuntimeError("Presence is not enabled for account %s" % self.account.id)
+        elif not self.account.presence.subscribe:
+            raise RuntimeError("Subscribe is not enabled for account %s" % self.account.id)
         for account in account_manager.iter_accounts():
             if account == self.account:
                 account.sip.enable_register = False
@@ -585,7 +587,7 @@ class SubscriptionApplication(object):
 
 
 if __name__ == "__main__":
-    description = "This script will SUBSCRIBE to the presence event published by the specified SIP target. If a SIP target is not specified, it will subscribe to its own address. It will then interprete PIDF bodies contained in NOTIFYs and display their meaning. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
+    description = "This script subscribes to the presence event package published by the specified SIP target. If a SIP target is not specified, it will subscribe to its own address. It will then interprete PIDF bodies contained in NOTIFYs and display their meaning. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
     usage = "%prog [options] [target-user@target-domain.com]"
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help

@@ -315,7 +315,7 @@ class SIPSimpleConfigurator(object):
 
 
 if __name__ == '__main__':
-    description = "This script is used to manage the SIP SIMPLE middleware settings."
+    description = "This script manages the SIP SIMPLE client SDK settings."
     usage = """%prog [--general|--account] [options] command [arguments]
        %prog --general show
        %prog --general set key1=value1 [key2=value2 ...]

@@ -244,7 +244,7 @@ class SIPAudioApplication(SIPApplication):
                 self.stop()
                 return
             elif len(possible_accounts) == 0:
-                self.output.put('No enabled account which matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+                self.output.put('No enabled account that matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
                 self.output.stop()
                 self.stop()
                 return

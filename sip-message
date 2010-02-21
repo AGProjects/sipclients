@@ -154,7 +154,7 @@ class SIPMessageApplication(SIPApplication):
                 self.stop()
                 return
             elif len(possible_accounts) == 0:
-                self.output.put('No enabled account which matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+                self.output.put('No enabled account that matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
                 self.output.stop()
                 self.stop()
                 return
@@ -306,7 +306,7 @@ class SIPMessageApplication(SIPApplication):
             self.stop()
 
 if __name__ == '__main__':
-    description = "This will either sit idle waiting for an incoming MESSAGE request, or send a MESSAGE request to the specified SIP target. In outgoing mode the program will read the contents of the messages to be sent from standard input, Ctrl+D signalling EOF as usual. In listen mode the program will quit when Ctrl+D is pressed."
+    description = "This script will either sit idle waiting for an incoming MESSAGE request, or send a MESSAGE request to the specified SIP target. In outgoing mode the program will read the contents of the messages to be sent from standard input, Ctrl+D signalling EOF as usual. In listen mode the program will quit when Ctrl+D is pressed."
     usage = '%prog [options] [user@domain]'
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help

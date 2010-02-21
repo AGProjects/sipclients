@@ -119,7 +119,7 @@ class SubscriptionApplication(object):
         try:
             configuration.start(FileBackend(config_filename))
         except ConfigurationError, e:
-            raise RuntimeError("failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
+            raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
         account_manager.load_accounts()
         if self.account_name is None:
             self.account = account_manager.default_account
@@ -128,16 +128,18 @@ class SubscriptionApplication(object):
             if len(possible_accounts) > 1:
                 raise RuntimeError("More than one account exists which matches %s: %s" % (self.account_name, ", ".join(sorted(account.id for account in possible_accounts))))
             if len(possible_accounts) == 0:
-                raise RuntimeError("No enabled account which matches %s was found. Available and enabled accounts: %s" % (self.account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+                raise RuntimeError("No enabled account that matches %s was found. Available and enabled accounts: %s" % (self.account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
             self.account = possible_accounts[0]
         if self.account is None:
-            raise RuntimeError("unknown account %s. Available accounts: %s" % (self.account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
+            raise RuntimeError("Unknown account %s. Available accounts: %s" % (self.account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
         elif self.account == BonjourAccount():
-            raise RuntimeError("cannot use bonjour account for presence subscription")
-        elif not self.account.presence.enable_subscribe_presence:
-            raise RuntimeError("presence subscriptions are not enabled for account %s" % self.account.id)
-        elif not self.account.presence.enable_rls_services:
-            raise RuntimeError("rls services are not enabled for account %s" % self.account.id)
+            raise RuntimeError("Cannot use bonjour account for presence subscription")
+        elif not self.account.presence.enabled:
+            raise RuntimeError("Presence is not enabled for account %s" % self.account.id)
+        elif not self.account.presence.subscribe:
+            raise RuntimeError("Subscribe is not enabled for account %s" % self.account.id)
+        elif not self.account.presence.rls_services:
+            raise RuntimeError("RLS-services is not enabled for account %s" % self.account.id)
         for account in account_manager.iter_accounts():
             if account == self.account:
                 account.sip.enable_register = False
@@ -349,7 +351,7 @@ class SubscriptionApplication(object):
 
 
 if __name__ == "__main__":
-    description = "This script will SUBSCRIBE to the presence event published by the specified SIP target assuming it is a resource list handled by a RLS server. The RLS server will then SUBSCRIBE in behalf of the account, collect NOTIFYs with the presence information of the recipients and provide periodically aggregated NOTIFYs back to the subscriber. If a target address is not specified, it will subscribe to the address 'username-buddies@domain.com', where username and domain are taken from the account's SIP address. It will then interprete PIDF bodies contained in NOTIFYs and display their meaning. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
+    description = "This script subscribes to the presence event package published by the specified SIP target assuming it is a resource list handled by a RLS server. The RLS server will then SUBSCRIBE in behalf of the account, collect NOTIFYs with the presence information of the recipients and provide periodically aggregated NOTIFYs back to the subscriber. If a target address is not specified, it will subscribe to the address 'username-buddies@domain.com', where username and domain are taken from the account's SIP address. It will then interprete PIDF bodies contained in NOTIFYs and display their meaning. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
     usage = "%prog [options] [target-user@target-domain.com]"
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help

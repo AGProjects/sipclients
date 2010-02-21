@@ -370,18 +370,16 @@ def do_xcap_dialog_rules(account_name):
         if len(possible_accounts) > 1:
             raise RuntimeError("More than one account exists which matches %s: %s" % (account_name, ", ".join(sorted(account.id for account in possible_accounts))))
         if len(possible_accounts) == 0:
-            raise RuntimeError("No enabled account which matches %s was found. Available and enabled accounts: %s" % (account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
+            raise RuntimeError("No enabled account that matches %s was found. Available and enabled accounts: %s" % (account_name, ", ".join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
         account = possible_accounts[0]
     if account is None:
-        raise RuntimeError("unknown account %s. Available accounts: %s" % (account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
+        raise RuntimeError("Unknown account %s. Available accounts: %s" % (account_name, ', '.join(account.id for account in account_manager.iter_accounts())))
     elif not account.enabled:
-        raise RuntimeError("account %s is not enabled" % account.id)
+        raise RuntimeError("Account %s is not enabled" % account.id)
     elif account == BonjourAccount():
-        raise RuntimeError("cannot use bonjour account for XCAP dialog-rules management")
-    elif not account.dialog_event.enable_dialog_rules:
-        raise RuntimeError("dialog rules are not enabled for account %s" % account.id)
+        raise RuntimeError("Cannot use bonjour account for XCAP dialog-rules management")
     elif not account.xcap.enabled:
-        raise RuntimeError("XCAP root is not enabled for account %s" % account.id)
+        raise RuntimeError("XCAP is not enabled for account %s" % account.id)
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
 
@@ -422,7 +420,7 @@ def do_xcap_dialog_rules(account_name):
 
 if __name__ == "__main__":
     retval = {}
-    description = "This example script will use the specified SIP account to manage dialog rules via XCAP. The program will quit when CTRL+D is pressed."
+    description = "This script manages the dialog rules document on the XCAP server for the given SIP account. The program will quit when CTRL+D is pressed."
     usage = "%prog [options]"
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help
