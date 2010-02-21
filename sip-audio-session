@@ -335,7 +335,7 @@ class SIPAudioApplication(SIPApplication):
                 notification_center = NotificationCenter()
                 settings = SIPSimpleSettings()
                 notification_center.add_observer(self, sender=lookup)
-                if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
+                if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None and self.account.sip.enable_outbound_proxy is True:
                     uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
                 else:
                     uri = self.target
