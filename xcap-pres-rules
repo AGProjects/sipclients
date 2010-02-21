@@ -386,8 +386,6 @@ def do_xcap_pres_rules(account_name):
         raise RuntimeError("XCAP is not enabled for account %s" % account.id)
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
-    elif not account.presence.pres_rules:
-        raise RuntimeError("Pres-rules are not enabled for account %s" % account.id)
  
     start_new_thread(read_queue,(account,))
     atexit.register(termios_restore)

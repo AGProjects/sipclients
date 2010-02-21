@@ -140,8 +140,6 @@ class SubscriptionApplication(object):
             raise RuntimeError("Cannot use bonjour account for presence subscription")
         elif not self.account.presence.enabled:
             raise RuntimeError("Presence is not enabled for account %s" % self.account.id)
-        elif not self.account.presence.subscribe:
-            raise RuntimeError("Subscribe is not enabled for account %s" % self.account.id)
         for account in account_manager.iter_accounts():
             if account == self.account:
                 account.sip.enable_register = False
