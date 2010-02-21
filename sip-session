@@ -1364,20 +1364,12 @@ class SIPSessionApplication(SIPApplication):
             send_notice('Stopped recording %s audio to %s' % (notification.data.direction, notification.data.file_name))
 
     def _NH_ChatStreamGotMessage(self, notification):
-        if hasattr(notification.data, 'cpim_headers') and 'From' in notification.data.cpim_headers:
-            cpim_identity = notification.data.cpim_headers['From']
-            if cpim_identity.display_name:
-                remote_identity = cpim_identity.display_name
-            else:
-                remote_identity = str(cpim_identity.uri)
+        if notification.data.message.sender.display_name:
+            remote_identity = notification.data.message.sender.display_name
         else:
-            msrp_chat = notification.sender
-            if msrp_chat.remote_identity.display_name:
-                remote_identity = msrp_chat.remote_identity.display_name
-            else:
-                remote_identity = str(msrp_chat.remote_identity.uri)
+            remote_identity = notification.data.message.sender.uri
         ui = UI()
-        ui.write(RichText('%s> ' % remote_identity, foreground='blue') + notification.data.content)
+        ui.write(RichText('%s> ' % remote_identity, foreground='blue') + notification.data.message.body)
 
     def _NH_DefaultAudioDeviceDidChange(self, notification):
         SIPApplication._NH_DefaultAudioDeviceDidChange(self, notification)
