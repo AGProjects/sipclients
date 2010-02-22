@@ -155,7 +155,7 @@ class AutoPublicationApplication(object):
             raise RuntimeError("Unknown account %s. Available enabled accounts: %s" % (self.account_name, ', '.join(sorted(account.id for account in account_manager.iter_accounts() if account.enabled))))
         for account in account_manager.iter_accounts():
             if account == self.account:
-                account.sip.enable_register = False
+                account.sip.register = False
             else:
                 account.enabled = False
         self.output.put('Using account %s' % self.account.id)
@@ -377,7 +377,7 @@ class AutoPublicationApplication(object):
 
             self._publication_timeout = time()+30
 
-            if self.account.sip.outbound_proxy is not None and self.account.sip.enable_outbound_proxy is True:
+            if self.account.sip.outbound_proxy is not None:
                 uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
             else:
                 uri = SIPURI(host=self.account.id.domain)

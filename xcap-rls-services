@@ -300,8 +300,8 @@ def do_xcap_rls_services(account_name, service):
         raise RuntimeError("XCAP is not enabled for account %s" % account.id)
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
-    elif not account.presence.rls_services:
-        raise RuntimeError("rls_services are not enabled for account %s" % account.id)
+    elif not account.presence.use_rls:
+        raise RuntimeError("RLS-services are not enabled for account %s" % account.id)
     
     if service is None:
         service_uri = 'sip:%s-buddies@%s' % (account.id.username, account.id.domain)

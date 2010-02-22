@@ -145,7 +145,7 @@ class OutgoingCallInitializer(object):
             notification_center = NotificationCenter()
             notification_center.add_observer(self, sender=lookup)
             settings = SIPSimpleSettings()
-            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None and self.account.sip.enable_outbound_proxy is True:
+            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
                 uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
             else:
                 uri = self.target
@@ -1013,7 +1013,7 @@ class SIPSessionApplication(SIPApplication):
 
         for account in account_manager.iter_accounts():
             if isinstance(account, Account):
-                account.sip.enable_register = False
+                account.sip.register = False
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -1029,7 +1029,7 @@ class SIPSessionApplication(SIPApplication):
             else:
                 self.account = possible_accounts[0]
         if isinstance(self.account, Account):
-            self.account.sip.enable_register = True
+            self.account.sip.register = True
             notification_center.add_observer(self, sender=self.account)
         send_notice('Using account %s' % self.account.id, bold=False)
         ui.prompt = Prompt(self.account.id, foreground='default')

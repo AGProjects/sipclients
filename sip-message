@@ -143,7 +143,7 @@ class SIPMessageApplication(SIPApplication):
 
         for account in account_manager.iter_accounts():
             if isinstance(account, Account):
-                account.sip.enable_register = False
+                account.sip.register = False
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -161,7 +161,7 @@ class SIPMessageApplication(SIPApplication):
             else:
                 self.account = possible_accounts[0]
         if isinstance(self.account, Account) and self.target is None:
-            self.account.sip.enable_register = True
+            self.account.sip.register = True
             notification_center.add_observer(self, sender=self.account)
         self.output.put('Using account %s\n' % self.account.id)
 
@@ -232,7 +232,7 @@ class SIPMessageApplication(SIPApplication):
             self.message = notification.data.message
             lookup = DNSLookup()
             notification_center.add_observer(self, sender=lookup)
-            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None and self.account.sip.enable_outbound_proxy is True:
+            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
                 uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
             else:
                 uri = self.target

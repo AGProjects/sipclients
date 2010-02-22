@@ -142,7 +142,7 @@ class SubscriptionApplication(object):
             raise RuntimeError("Presence is not enabled for account %s" % self.account.id)
         for account in account_manager.iter_accounts():
             if account == self.account:
-                account.sip.enable_register = False
+                account.sip.register = False
             else:
                 account.enabled = False
         self.output.put('Using account %s' % self.account.id)
@@ -349,7 +349,7 @@ class SubscriptionApplication(object):
         lookup = DNSLookup()
         notification_center = NotificationCenter()
         notification_center.add_observer(self, sender=lookup)
-        if self.account.sip.outbound_proxy is not None and self.account.sip.enable_outbound_proxy is True:
+        if self.account.sip.outbound_proxy is not None:
             uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
         else:
             uri = self.target.uri
