@@ -213,7 +213,8 @@ class OutgoingCallInitializer(object):
         for stream in notification.data.streams:
             if isinstance(stream, AudioStream):
                 send_notice('Audio session established using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
-                send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
+                if not self.account.nat_traversal.use_ice:
+                    send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 if stream.srtp_active:
                     send_notice('RTP audio stream is encrypted')
         if session.remote_user_agent is not None:
@@ -339,6 +340,7 @@ class IncomingCallInitializer(object):
         session = notification.sender
         notification_center.remove_observer(self, sender=session)
         IncomingCallInitializer.sessions -= 1
+        application = SIPSessionApplication()
 
         ui = UI()
         ui.status = 'Connected'
@@ -351,7 +353,8 @@ class IncomingCallInitializer(object):
         for stream in notification.data.streams:
             if isinstance(stream, AudioStream):
                 send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
-                send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
+                if not application.account.nat_traversal.use_ice:
+                    send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 if stream.srtp_active:
                     send_notice('RTP audio stream is encrypted')
         if session.remote_user_agent is not None:
@@ -953,6 +956,8 @@ class SIPSessionApplication(SIPApplication):
         notification_center.add_observer(self, name='SIPSessionNewIncoming')
         notification_center.add_observer(self, name='SIPSessionNewOutgoing')
         notification_center.add_observer(self, name='AudioStreamDidChangeRTPParameters')
+        notification_center.add_observer(self, name='AudioStreamICENegotiationDidSucceed')
+        notification_center.add_observer(self, name='AudioStreamICENegotiationDidFail')
 
         log.level.current = log.level.WARNING # get rid of twisted messages
         control_bindings={'s': 'trace sip',
@@ -1404,6 +1409,15 @@ class SIPSessionApplication(SIPApplication):
 
     def _NH_WaveFileDidFinishPlaying(self, notification):
         NotificationCenter().remove_observer(self, sender=notification.sender)
+
+    def _NH_AudioStreamICENegotiationDidSucceed(self, notification):
+        send_notice("ICE negotiation succeeded in %s" % notification.data.duration)
+        send_notice('Audio RTP endpoints %s (ICE type %s) <-> %s (ICE type %s)' % (notification.data.chosen_local_candidates['rtp_cand_ip'], notification.data.chosen_local_candidates['rtp_cand_type'], notification.data.chosen_remote_candidates['rtp_cand_ip'], notification.data.chosen_remote_candidates['rtp_cand_type']))
+
+    def _NH_AudioStreamICENegotiationDidFail(self, notification):
+        stream = notification.sender
+        send_notice("ICE negotiation failed: %s" % notification.data.reason)
+        send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
 
     # command handlers
     #
