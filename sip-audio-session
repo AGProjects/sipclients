@@ -23,9 +23,10 @@ from application.python.util import Null
 from twisted.internet import reactor
 from zope.interface import implements
 
-from sipsimple.core import Engine, SIPCoreError, SIPURI, ToHeader, WaveFile
+from sipsimple.core import Engine, SIPCoreError, SIPURI, ToHeader
 
 from sipsimple.account import Account, AccountManager, BonjourAccount
+from sipsimple.audio import WavePlayer
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError
 from sipsimple.configuration.backend.file import FileBackend
@@ -33,7 +34,6 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.session import Session
 from sipsimple.streams import AudioStream
-from sipsimple.util import PersistentTones, SilenceableWaveFile
 
 from sipclient.configuration import config_filename
 from sipclient.configuration.account import AccountExtension
@@ -279,18 +279,18 @@ class SIPAudioApplication(SIPApplication):
 
         self.output.put('Available audio input devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(engine.input_devices)))
         self.output.put('Available audio output devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(engine.output_devices)))
-        if self.voice_conference_bridge.input_device == 'system_default':
-            self.output.put('Using audio input device: %s (system default device)\n' % self.voice_conference_bridge.real_input_device)
+        if self.voice_audio_mixer.input_device == 'system_default':
+            self.output.put('Using audio input device: %s (system default device)\n' % self.voice_audio_mixer.real_input_device)
         else:
-            self.output.put('Using audio input device: %s\n' % self.voice_conference_bridge.input_device)
-        if self.voice_conference_bridge.output_device == 'system_default':
-            self.output.put('Using audio output device: %s (system default device)\n' % self.voice_conference_bridge.real_output_device)
+            self.output.put('Using audio input device: %s\n' % self.voice_audio_mixer.input_device)
+        if self.voice_audio_mixer.output_device == 'system_default':
+            self.output.put('Using audio output device: %s (system default device)\n' % self.voice_audio_mixer.real_output_device)
         else:
-            self.output.put('Using audio output device: %s\n' % self.voice_conference_bridge.output_device)
-        if self.alert_conference_bridge.output_device == 'system_default':
-            self.output.put('Using audio alert device: %s (system default device)\n' % self.alert_conference_bridge.real_output_device)
+            self.output.put('Using audio output device: %s\n' % self.voice_audio_mixer.output_device)
+        if self.alert_audio_mixer.output_device == 'system_default':
+            self.output.put('Using audio alert device: %s (system default device)\n' % self.alert_audio_mixer.real_output_device)
         else:
-            self.output.put('Using audio alert device: %s\n' % self.alert_conference_bridge.output_device)
+            self.output.put('Using audio alert device: %s\n' % self.alert_audio_mixer.output_device)
 
         if isinstance(self.account, BonjourAccount) and self.target is None:
             contacts = []
@@ -304,17 +304,15 @@ class SIPAudioApplication(SIPApplication):
         inbound_ringtone = self.account.sounds.audio_inbound.sound_file if self.account.sounds.audio_inbound is not None else None
         outbound_ringtone = settings.sounds.audio_outbound
         if inbound_ringtone:
-            try:
-                self.wave_inbound_ringtone = SilenceableWaveFile(self.alert_conference_bridge, inbound_ringtone.path.normalized, volume=inbound_ringtone.volume, loop_count=0, pause_time=2)
-            except ValueError, e:
-                self.output.put('Failed to load inbound ringtone: %s\n' % e)
+            self.wave_inbound_ringtone = WavePlayer(self.alert_audio_mixer, inbound_ringtone.path.normalized, volume=inbound_ringtone.volume, loop_count=0, pause_time=2)
+            self.alert_audio_bridge.add(self.wave_inbound_ringtone)
         if outbound_ringtone:
-            try:
-                self.wave_outbound_ringtone = SilenceableWaveFile(self.alert_conference_bridge, outbound_ringtone.path.normalized, volume=outbound_ringtone.volume, loop_count=0, pause_time=2)
-            except ValueError, e:
-                self.output.put('Failed to load inbound ringtone: %s\n' % e)
-        self.tone_ringtone = PersistentTones(self.voice_conference_bridge, [(1000, 400, 200), (0, 0, 50) , (1000, 600, 200)], 6)
-        self.hold_tone = PersistentTones(self.voice_conference_bridge, [(300, 0, 100), (0,0,100), (300, 0, 100)], 30, volume=50)
+            self.wave_outbound_ringtone = WavePlayer(self.voice_audio_mixer, outbound_ringtone.path.normalized, volume=outbound_ringtone.volume, loop_count=0, pause_time=2)
+            self.voice_audio_bridge.add(self.wave_outbound_ringtone)
+        self.tone_ringtone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/ring_tone.wav').normalized, loop_count=0, pause_time=6)
+        self.voice_audio_bridge.add(self.tone_ringtone)
+        self.hold_tone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/hold_tone.wav').normalized, loop_count=0, pause_time=30, volume=50)
+        self.voice_audio_bridge.add(self.hold_tone)
 
         if self.target is not None:
             if isinstance(self.account, BonjourAccount) and '@' not in self.target:
@@ -374,68 +372,68 @@ class SIPAudioApplication(SIPApplication):
             else:
                 session.reject()
         elif notification.data.input == 'm':
-            self.voice_conference_bridge.muted = not self.voice_conference_bridge.muted
-            self.output.put('The microphone is now %s\n' % ('muted' if self.voice_conference_bridge.muted else 'unmuted'))
+            self.voice_audio_mixer.muted = not self.voice_audio_mixer.muted
+            self.output.put('The microphone is now %s\n' % ('muted' if self.voice_audio_mixer.muted else 'unmuted'))
         elif notification.data.input == 'i':
             input_devices = [None, 'system_default'] + sorted(engine.input_devices)
-            if self.voice_conference_bridge.input_device in input_devices:
-                old_input_device = self.voice_conference_bridge.input_device
+            if self.voice_audio_mixer.input_device in input_devices:
+                old_input_device = self.voice_audio_mixer.input_device
             else:
                 old_input_device = None
             tries = 0
             while tries < len(input_devices):
                 new_input_device = input_devices[(input_devices.index(old_input_device)+1) % len(input_devices)]
                 try:
-                    self.voice_conference_bridge.set_sound_devices(new_input_device, self.voice_conference_bridge.output_device, self.voice_conference_bridge.ec_tail_length)
+                    self.voice_audio_mixer.set_sound_devices(new_input_device, self.voice_audio_mixer.output_device, self.voice_audio_mixer.ec_tail_length)
                 except SIPCoreError, e:
                     tries += 1
                     old_input_device = new_input_device
                     self.output.put('Failed to set input device to %s: %s\n' % (new_input_device, str(e)))
                 else:
                     if new_input_device == 'system_default':
-                        self.output.put('Input device changed to %s (system default device)\n' % self.voice_conference_bridge.real_input_device)
+                        self.output.put('Input device changed to %s (system default device)\n' % self.voice_audio_mixer.real_input_device)
                     else:
                         self.output.put('Input device changed to %s\n' % new_input_device)
                     break
         elif notification.data.input == 'o':
             output_devices = [None, 'system_default'] + sorted(engine.output_devices)
-            if self.voice_conference_bridge.output_device in output_devices:
-                old_output_device = self.voice_conference_bridge.output_device
+            if self.voice_audio_mixer.output_device in output_devices:
+                old_output_device = self.voice_audio_mixer.output_device
             else:
                 old_output_device = None
             tries = 0
             while tries < len(output_devices):
                 new_output_device = output_devices[(output_devices.index(old_output_device)+1) % len(output_devices)]
                 try:
-                    self.voice_conference_bridge.set_sound_devices(self.voice_conference_bridge.input_device, new_output_device, self.voice_conference_bridge.ec_tail_length)
+                    self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, new_output_device, self.voice_audio_mixer.ec_tail_length)
                 except SIPCoreError, e:
                     tries += 1
                     old_output_device = new_output_device
                     self.output.put('Failed to set output device to %s: %s\n' % (new_output_device, str(e)))
                 else:
                     if new_output_device == 'system_default':
-                        self.output.put('Output device changed to %s (system default device)\n' % self.voice_conference_bridge.real_output_device)
+                        self.output.put('Output device changed to %s (system default device)\n' % self.voice_audio_mixer.real_output_device)
                     else:
                         self.output.put('Output device changed to %s\n' % new_output_device)
                     break
         elif notification.data.input == 'a':
             output_devices = [None, 'system_default'] + sorted(engine.output_devices)
-            if self.alert_conference_bridge.output_device in output_devices:
-                old_output_device = self.alert_conference_bridge.output_device
+            if self.alert_audio_mixer.output_device in output_devices:
+                old_output_device = self.alert_audio_mixer.output_device
             else:
                 old_output_device = None
             tries = 0
             while tries < len(output_devices):
                 new_output_device = output_devices[(output_devices.index(old_output_device)+1) % len(output_devices)]
                 try:
-                    self.alert_conference_bridge.set_sound_devices(self.alert_conference_bridge.input_device, new_output_device, self.alert_conference_bridge.ec_tail_length)
+                    self.alert_audio_mixer.set_sound_devices(self.alert_audio_mixer.input_device, new_output_device, self.alert_audio_mixer.ec_tail_length)
                 except SIPCoreError, e:
                     tries += 1
                     old_output_device = new_output_device
                     self.output.put('Failed to set alert device to %s: %s\n' % (new_output_device, str(e)))
                 else:
                     if new_output_device == 'system_default':
-                        self.output.put('Alert device changed to %s (system default device)\n' % self.alert_conference_bridge.real_output_device)
+                        self.output.put('Alert device changed to %s (system default device)\n' % self.alert_audio_mixer.real_output_device)
                     else:
                         self.output.put('Alert device changed to %s\n' % new_output_device)
                     break
@@ -462,17 +460,13 @@ class SIPAudioApplication(SIPApplication):
                     digit = notification.data.input
                     audio_stream.send_dtmf(digit)
                     filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
-                    wave_file = WaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
-                    try:
-                        wave_file.start()
-                    except SIPCoreError, e:
-                        self.output.put('Failed to play dtmf: %s\n' % e)
+                    wave_player = WavePlayer(self.voice_audio_mixer, ResourcePath(filename).normalized)
+                    notification_center.add_observer(self, sender=wave_player)
+                    if self.active_session.account.rtp.inband_dtmf:
+                        audio_stream.bridge.add(wave_player)
                     else:
-                        notification_center.add_observer(self, sender=wave_file)
-                        audio_slot = audio_stream.slot
-                        if self.active_session.account.rtp.inband_dtmf and audio_slot is not None:
-                            self.voice_conference_bridge.connect_slots(wave_file.slot, audio_slot)
-                        self.voice_conference_bridge.connect_slots(wave_file.slot, 0)
+                        self.voice_audio_bridge.add(wave_player)
+                    wave_player.start()
         elif notification.data.input in ('\x1b[A', '\x1b[D') and len(self.started_sessions) > 0: # UP and LEFT
             if self.active_session is None:
                 self.active_session = self.started_sessions[0]
@@ -506,19 +500,19 @@ class SIPAudioApplication(SIPApplication):
                 identity = '"%s" <%s>' % (self.active_session.remote_identity.display_name, identity)
             self.output.put('Active audio session: "%s" (%d/%d)\n' % (identity, self.started_sessions.index(self.active_session)+1, len(self.started_sessions)))
         elif notification.data.input in ('<', ','):
-            new_tail_length = self.voice_conference_bridge.ec_tail_length - 10
+            new_tail_length = self.voice_audio_mixer.ec_tail_length - 10
             if new_tail_length < 0:
                 new_tail_length = 0
-            if new_tail_length != self.voice_conference_bridge.ec_tail_length:
-                self.voice_conference_bridge.set_sound_devices(self.voice_conference_bridge.input_device, self.voice_conference_bridge.output_device, new_tail_length)
-            self.output.put('Set echo cancellation tail length to %d ms\n' % self.voice_conference_bridge.ec_tail_length)
+            if new_tail_length != self.voice_audio_mixer.ec_tail_length:
+                self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, self.voice_audio_mixer.output_device, new_tail_length)
+            self.output.put('Set echo cancellation tail length to %d ms\n' % self.voice_audio_mixer.ec_tail_length)
         elif notification.data.input in ('>', '.'):
-            new_tail_length = self.voice_conference_bridge.ec_tail_length + 10
+            new_tail_length = self.voice_audio_mixer.ec_tail_length + 10
             if new_tail_length > 500:
                 new_tail_length = 500
-            if new_tail_length != self.voice_conference_bridge.ec_tail_length:
-                self.voice_conference_bridge.set_sound_devices(self.voice_conference_bridge.input_device, self.voice_conference_bridge.output_device, new_tail_length)
-            self.output.put('Set echo cancellation tail length to %d ms\n' % self.voice_conference_bridge.ec_tail_length)
+            if new_tail_length != self.voice_audio_mixer.ec_tail_length:
+                self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, self.voice_audio_mixer.output_device, new_tail_length)
+            self.output.put('Set echo cancellation tail length to %d ms\n' % self.voice_audio_mixer.ec_tail_length)
         elif notification.data.input == 'r':
             if self.active_session is None or not self.active_session.streams:
                 return
@@ -718,6 +712,8 @@ class SIPAudioApplication(SIPApplication):
                 self.hangup_timers[id(session)] = timer
 
     def _NH_SIPSessionWillEnd(self, notification):
+        notification_center = NotificationCenter()
+
         session = notification.sender
         if id(session) in self.hangup_timers:
             timer = self.hangup_timers[id(session)]
@@ -725,12 +721,10 @@ class SIPAudioApplication(SIPApplication):
                 timer.cancel()
             del self.hangup_timers[id(session)]
 
-        try:
-            hangup_tone = SilenceableWaveFile(self.voice_conference_bridge, ResourcePath('sounds/hangup_tone.wav').normalized)
-        except ValueError, e:
-            self.output.put('Failed to play hangup tone: %s\n' % e)
-        else:
-            hangup_tone.start()
+        hangup_tone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/hangup_tone.wav').normalized)
+        notification_center.add_observer(self, sender=hangup_tone)
+        self.voice_audio_bridge.add(hangup_tone)
+        hangup_tone.start()
 
     def _NH_SIPSessionDidEnd(self, notification):
         session = notification.sender
@@ -829,14 +823,13 @@ class SIPAudioApplication(SIPApplication):
             session.reject_proposal(488)
 
     def _NH_AudioStreamGotDTMF(self, notification):
+        notification_center = NotificationCenter()
         digit = notification.data.digit
         filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
-        try:
-            wave_file = SilenceableWaveFile(self.voice_conference_bridge, ResourcePath(filename).normalized)
-        except ValueError, e:
-            self.output.put('Failed to play dtmf: %s\n' % e)
-        else:
-            wave_file.start()
+        wave_player = WavePlayer(self.voice_audio_mixer, ResourcePath(filename).normalized)
+        notification_center.add_observer(self, sender=wave_player)
+        self.voice_audio_bridge.add(wave_player)
+        wave_player.start()
 
     def _NH_AudioStreamDidChangeHoldState(self, notification):
         if notification.data.on_hold:
@@ -856,32 +849,37 @@ class SIPAudioApplication(SIPApplication):
             self.output.put('RTP audio stream is encrypted\n')
 
     def _NH_AudioStreamDidStartRecordingAudio(self, notification):
-        self.output.put('Recording audio to %s\n' % notification.data.file_name)
+        self.output.put('Recording audio to %s\n' % notification.data.filename)
 
     def _NH_AudioStreamDidStopRecordingAudio(self, notification):
-        self.output.put('Stopped recording audio to %s\n' % notification.data.file_name)
+        self.output.put('Stopped recording audio to %s\n' % notification.data.filename)
 
-    def _NH_WaveFileDidFinishPlaying(self, notification):
+    def _NH_WavePlayerDidEnd(self, notification):
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=notification.sender)
 
+    def _NH_WavePlayerDidFail(self, notification):
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self, sender=notification.sender)
+        self.output.put('Failed to play %s: %s' % (notification.sender.filename, notification.data.error))
+
     def _NH_DefaultAudioDeviceDidChange(self, notification):
         SIPApplication._NH_DefaultAudioDeviceDidChange(self, notification)
-        if notification.data.changed_input and self.voice_conference_bridge.input_device=='system_default':
-            self.output.put('Switched default input device to: %s\n' % self.voice_conference_bridge.real_input_device)
-        if notification.data.changed_output and self.voice_conference_bridge.output_device=='system_default':
-            self.output.put('Switched default output device to: %s\n' % self.voice_conference_bridge.real_output_device)
-        if notification.data.changed_output and self.alert_conference_bridge.output_device=='system_default':
-            self.output.put('Switched alert device to: %s\n' % self.alert_conference_bridge.real_output_device)
+        if notification.data.changed_input and self.voice_audio_mixer.input_device=='system_default':
+            self.output.put('Switched default input device to: %s\n' % self.voice_audio_mixer.real_input_device)
+        if notification.data.changed_output and self.voice_audio_mixer.output_device=='system_default':
+            self.output.put('Switched default output device to: %s\n' % self.voice_audio_mixer.real_output_device)
+        if notification.data.changed_output and self.alert_audio_mixer.output_device=='system_default':
+            self.output.put('Switched alert device to: %s\n' % self.alert_audio_mixer.real_output_device)
 
     def _NH_AudioDevicesDidChange(self, notification):
         old_devices = set(notification.data.old_devices)
         new_devices = set(notification.data.new_devices)
         added_devices = new_devices - old_devices
         removed_devices = old_devices - new_devices
-        changed_input_device = self.voice_conference_bridge.real_input_device in removed_devices
-        changed_output_device = self.voice_conference_bridge.real_output_device in removed_devices
-        changed_alert_device = self.alert_conference_bridge.real_output_device in removed_devices
+        changed_input_device = self.voice_audio_mixer.real_input_device in removed_devices
+        changed_output_device = self.voice_audio_mixer.real_output_device in removed_devices
+        changed_alert_device = self.alert_audio_mixer.real_output_device in removed_devices
 
         SIPApplication._NH_AudioDevicesDidChange(self, notification)
 
@@ -890,11 +888,11 @@ class SIPAudioApplication(SIPApplication):
         if removed_devices:
             self.output.put('Removed audio device(s): %s\n' % ', '.join(sorted(removed_devices)))
         if changed_input_device:
-            self.output.put('Input device has been switched to: %s\n' % self.voice_conference_bridge.real_input_device)
+            self.output.put('Input device has been switched to: %s\n' % self.voice_audio_mixer.real_input_device)
         if changed_output_device:
-            self.output.put('Output device has been switched to: %s\n' % self.voice_conference_bridge.real_output_device)
+            self.output.put('Output device has been switched to: %s\n' % self.voice_audio_mixer.real_output_device)
         if changed_alert_device:
-            self.output.put('Alert device has been switched to: %s\n' % self.alert_conference_bridge.real_output_device)
+            self.output.put('Alert device has been switched to: %s\n' % self.alert_audio_mixer.real_output_device)
 
         self.output.put('Available audio input devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(self.engine.input_devices)))
         self.output.put('Available audio output devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(self.engine.output_devices)))
