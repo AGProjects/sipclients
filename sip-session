@@ -212,7 +212,9 @@ class OutgoingCallInitializer(object):
         for stream in notification.data.streams:
             if isinstance(stream, AudioStream):
                 send_notice('Audio session established using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
-                if not self.account.nat_traversal.use_ice:
+                if stream.ice_active:
+                    send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
+                else:
                     send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 if stream.srtp_active:
                     send_notice('RTP audio stream is encrypted')
@@ -353,7 +355,9 @@ class IncomingCallInitializer(object):
         for stream in notification.data.streams:
             if isinstance(stream, AudioStream):
                 send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
-                if not application.account.nat_traversal.use_ice:
+                if stream.ice_active:
+                    send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
+                else:
                     send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 if stream.srtp_active:
                     send_notice('RTP audio stream is encrypted')
@@ -1234,7 +1238,8 @@ class SIPSessionApplication(SIPApplication):
             duration_text = '%02d:%02d:%02d' % (hours, minutes, seconds)
         send_notice('Session duration was %s' % duration_text)
 
-        self.connected_sessions.remove(session)
+        if session in self.connected_sessions:
+            self.connected_sessions.remove(session)
         if session is self.active_session:
             if self.connected_sessions:
                 self.active_session = self.connected_sessions[0]
@@ -1400,12 +1405,10 @@ class SIPSessionApplication(SIPApplication):
 
     def _NH_AudioStreamICENegotiationDidSucceed(self, notification):
         send_notice("ICE negotiation succeeded in %s" % notification.data.duration)
-        send_notice('Audio RTP endpoints %s (ICE type %s) <-> %s (ICE type %s)' % (notification.data.chosen_local_candidates['rtp_cand_ip'], notification.data.chosen_local_candidates['rtp_cand_type'], notification.data.chosen_remote_candidates['rtp_cand_ip'], notification.data.chosen_remote_candidates['rtp_cand_type']))
 
     def _NH_AudioStreamICENegotiationDidFail(self, notification):
         stream = notification.sender
         send_notice("ICE negotiation failed: %s" % notification.data.reason)
-        send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
 
     # command handlers
     #

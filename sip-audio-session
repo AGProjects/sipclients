@@ -680,7 +680,9 @@ class SIPAudioApplication(SIPApplication):
         session = notification.sender
         audio_stream = notification.data.streams[0]
         self.output.put('Audio session established using "%s" codec at %sHz\n' % (audio_stream.codec, audio_stream.sample_rate))
-        if not self.account.nat_traversal.use_ice:
+        if audio_stream.ice_active:
+            self.output.put('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)\n' % (audio_stream.local_rtp_address, audio_stream.local_rtp_port, audio_stream.local_rtp_candidate_type, audio_stream.remote_rtp_address, audio_stream.remote_rtp_port, audio_stream.remote_rtp_candidate_type))
+        else:
             self.output.put('Audio RTP endpoints %s:%d <-> %s:%d\n' % (audio_stream.local_rtp_address, audio_stream.local_rtp_port, audio_stream.remote_rtp_address, audio_stream.remote_rtp_port))
         if audio_stream.srtp_active:
             self.output.put('RTP audio stream is encrypted\n')
@@ -899,12 +901,10 @@ class SIPAudioApplication(SIPApplication):
 
     def _NH_AudioStreamICENegotiationDidSucceed(self, notification):
         self.output.put("ICE negotiation succeeded in %s\n" % notification.data.duration)
-        self.output.put('Audio RTP endpoints %s (ICE type %s) <-> %s (ICE type %s)\n' % (notification.data.chosen_local_candidates['rtp_cand_ip'], notification.data.chosen_local_candidates['rtp_cand_type'], notification.data.chosen_remote_candidates['rtp_cand_ip'], notification.data.chosen_remote_candidates['rtp_cand_type']))
 
     def _NH_AudioStreamICENegotiationDidFail(self, notification):
         audio_stream = notification.sender
         self.output.put("ICE negotiation failed: %s\n" % notification.data.reason)
-        self.output.put('Audio RTP endpoints %s:%d <-> %s:%d\n' % (audio_stream.local_rtp_address, audio_stream.local_rtp_port, audio_stream.remote_rtp_address, audio_stream.remote_rtp_port))
 
     def _print_new_session(self):
         session = self.incoming_sessions[0]
