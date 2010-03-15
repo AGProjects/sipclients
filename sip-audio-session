@@ -633,8 +633,8 @@ class SIPAudioApplication(SIPApplication):
         elif session.direction == 'outgoing':
             if self.wave_outbound_ringtone:
                 self.wave_outbound_ringtone.stop()
-        if notification.data.failure_reason == 'user request' and notification.data.reason == 'Canceled':
-            self.output.put('Audio session cancelled by user\n')
+        if notification.data.failure_reason == 'user request' or notification.data.failure_reason == 'Call completed elsewhere' and notification.data.code == 487:
+            self.output.put('Audio session cancelled: %s\n' % notification.data.failure_reason)
             if session is self.outgoing_session:
                 self.stop()
             if session in self.incoming_sessions:

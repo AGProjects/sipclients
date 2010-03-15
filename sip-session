@@ -386,6 +386,8 @@ class IncomingCallInitializer(object):
             IncomingCallInitializer.tone_ringtone = None
         if notification.data.failure_reason == 'user request' and notification.data.code == 487:
             send_notice('SIP session cancelled by user')
+        if notification.data.failure_reason == 'Call completed elsewhere' and notification.data.code == 487:
+            send_notice('SIP session cancelled, call was answered elsewhere')
         elif notification.data.failure_reason == 'user request':
             send_notice('SIP session rejected (%d %s)' % (notification.data.code, notification.data.reason))
         else:
