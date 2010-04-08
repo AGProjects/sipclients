@@ -33,6 +33,24 @@ from sipclient.log import Logger
 from sipclient.system import IPAddressMonitor
 
 
+class BonjourNeighbour(object):
+    def __init__(self, uri, display_name=None):
+        self.uri = uri
+        self.display_name = display_name
+
+    def __hash__(self):
+        return hash(self.uri)
+
+    def __eq__(self, other):
+        if isinstance(other, BonjourNeighbour):
+            return self.uri == other.uri and self.display_name == other.display_name
+        else:
+            return self.uri == other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
 class InputThread(Thread):
     def __init__(self):
         Thread.__init__(self)
@@ -83,6 +101,7 @@ class RegistrationApplication(SIPApplication):
         self.ip_address_monitor = IPAddressMonitor()
         self.logger = None
         self.max_registers = None
+        self.neighbours = set()
         self.success = False
 
     def start(self, options):
@@ -150,14 +169,17 @@ class RegistrationApplication(SIPApplication):
                 return
             else:
                 self.account = possible_accounts[0]
-        if isinstance(self.account, BonjourAccount):
-            self.output.put('Cannot use bonjour account for registration\n')
-            self.output.stop()
-            self.stop()
-            return
         self.account.sip.register = True
         self.output.put('Using account %s\n' % self.account.id)
         notification_center.add_observer(self, sender=self.account)
+        if self.account is BonjourAccount() and self.max_registers is not None:
+            if self.max_registers == 1:
+                self.max_registers = len(self.account.sip.transport_list)
+            else:
+                self.output.put('--max-registers option only accepts 0 or 1 if using Bonjour account\n')
+                self.output.stop()
+                self.stop()
+                return
 
         # start logging
         self.logger.start()
@@ -170,7 +192,9 @@ class RegistrationApplication(SIPApplication):
 
     def _NH_SIPApplicationDidStart(self, notification):
         self.ip_address_monitor.start()
-        if self.max_registers != 1 and not self.options.batch_mode:
+        if self.account is not BonjourAccount() and self.max_registers != 1 and not self.options.batch_mode:
+            self.print_help()
+        elif self.account is BonjourAccount() and self.max_registers is None:
             self.print_help()
 
     def _NH_SIPApplicationWillEnd(self, notification):
@@ -240,6 +264,36 @@ class RegistrationApplication(SIPApplication):
 
     def _NH_SIPAccountRegistrationDidEnd(self, notification):
         self.output.put('%s Registration ended.\n' % datetime.now().replace(microsecond=0))
+
+    def _NH_BonjourAccountRegistrationDidSucceed(self, notification):
+        self.output.put('%s Registered Bonjour contact "%s"\n' % (datetime.now().replace(microsecond=0), notification.data.name))
+        if self.max_registers is not None:
+            self.max_registers -= 1
+            if self.max_registers == 0:
+                self.stop()
+
+    def _NH_BonjourAccountRegistrationDidFail(self, notification):
+        self.output.put('%s Failed to register Bonjour contact: %s\n' % (datetime.now().replace(microsecond=0), notification.data.reason))
+        if self.max_registers is not None:
+            self.max_registers -= 1
+            if self.max_registers == 0:
+                self.stop()
+
+    def _NH_BonjourAccountRegistrationDidEnd(self, notification):
+        self.output.put('%s Registration ended.\n' % datetime.now().replace(microsecond=0))
+
+    def _NH_BonjourAccountDidAddNeighbour(self, notification):
+        if self.max_registers is None and notification.data.uri not in self.neighbours:
+            self.output.put('%s Discovered Bonjour neighbour: "%s" <%s>\n' % (datetime.now().replace(microsecond=0), notification.data.display_name, notification.data.uri))
+            self.neighbours.add(BonjourNeighbour(notification.data.uri, notification.data.display_name))
+
+    def _NH_BonjourAccountDidRemoveNeighbour(self, notification):
+        if self.max_registers is None and notification.data.uri in self.neighbours:
+            self.output.put('%s Bonjour neighbour left: %s\n' % (datetime.now().replace(microsecond=0), notification.data.uri))
+            self.neighbours.remove(notification.data.uri)
+
+    def _NH_BonjourAccountWillRestartDiscovery(self, notification):
+        self.neighbours.clear()
 
     def _NH_SIPEngineGotException(self, notification):
         self.output.put('%s An exception occured within the SIP core:\n%s\n' % (datetime.now().replace(microsecond=0), notification.data.traceback))
