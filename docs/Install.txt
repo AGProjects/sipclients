@@ -15,12 +15,16 @@ Step 1. Install SIP SIMPLE client SDK
 -------------------------------------
 
 Follow the instructions in the docs directory of the python-sipsimple
-distribution archive.
+distribution archive available at:
+
+http://download.ag-projects.com/SipClient/
 
 
 Step 2. Install SIP SIMPLE clients
 ----------------------------------
 
-sudo python setup.py install
+Download and unpack siplients from http://download.ag-projects.com/SipClient
 
+cd sipclients
+sudo python setup.py install
 
