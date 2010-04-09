@@ -1,3 +1,17 @@
+sipclients (0.14.0) unstable; urgency=low
+
+  * Add ability to CANCEL re-INVITEs
+  * Check if enable_outbound_proxy is True when outbound_proxy is set
+  * Updated settings to match the middleware
+  * Adapted to ChatStream interface changes
+  * Display ICE negotiation related information
+  * Adapted to audio support refactoring
+  * Adapt scripts to changes in ICE status notifications
+  * Print message according to CANCEL reason
+  * Improved support for bonjour in scripts
+
+ -- Saul Ibarra <saul@ag-projects.com>  Fri, 09 Apr 2010 16:27:02 +0200
+
 sipclients (0.12.0) unstable; urgency=low
 
   * Initial release
