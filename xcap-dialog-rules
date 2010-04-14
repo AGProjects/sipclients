@@ -290,7 +290,7 @@ def read_queue(account):
     global user_quit, lock, queue, xcap_client
     lock.acquire()
     try:
-        xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.password, auth=None)
+        xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.auth.password, auth=None)
         print 'Retrieving current dialog rules from %s' % account.xcap.xcap_root
         get_drules()
         if show_xml and drules is not None:

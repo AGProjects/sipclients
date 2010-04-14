@@ -155,7 +155,7 @@ def do_xcap_icon(operation, account_name, file):
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
 
-    xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.password, auth=None)
+    xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.auth.password, auth=None)
     if operation == "GET":
         _do_icon_get()
     elif operation == "PUT":

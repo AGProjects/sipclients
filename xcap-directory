@@ -88,7 +88,7 @@ def do_xcap_directory(account_name):
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
 
-    xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.password, auth=None)
+    xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.auth.password, auth=None)
     print 'Retrieving xcap-directory from %s' % account.xcap.xcap_root
     get_xcap_directory()
     print_xcap_directory()
