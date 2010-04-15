@@ -149,7 +149,7 @@ def do_xcap_icon(operation, account_name, file):
     elif not account.enabled:
         raise RuntimeError("Account %s is not enabled" % account.id)
     elif account == BonjourAccount():
-        raise RuntimeError("Cannot use bonjour account for XCAP dialog-rules management")
+        raise RuntimeError("Cannot use bonjour account for XCAP icon management")
     elif not account.xcap.enabled:
         raise RuntimeError("XCAP is not enabled for account %s" % account.id)
     elif account.xcap.xcap_root is None:
