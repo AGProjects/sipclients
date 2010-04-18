@@ -7,7 +7,7 @@ http://ag-projects.com
 
 Home page: http://sipsimpleclient.com
 
-This document described the installation procedure on Linux, MacOSX
+This document described the manual installation procedure on Linux, MacOSX
 Leopard 10.5 and Snow Leopard 10.6 operating systems.
 
 
@@ -20,7 +20,13 @@ distribution archive available at:
 http://download.ag-projects.com/SipClient/
 
 
-Step 2. Install SIP SIMPLE clients
+Step 2. Install dependencies
+----------------------------
+
+sudo easy_install PIL
+
+
+Step 3. Install SIP SIMPLE clients
 ----------------------------------
 
 Download and unpack siplients from http://download.ag-projects.com/SipClient
