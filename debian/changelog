@@ -1,3 +1,9 @@
+sipclients (0.14.2) unstable; urgency=low
+
+  * Raised python-sipsimple version dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Tue, 20 Apr 2010 13:09:17 +0200
+
 sipclients (0.14.1) unstable; urgency=low
 
   * Adapted to move of account.password setting
