@@ -1,3 +1,10 @@
+sipclients (0.14.1) unstable; urgency=low
+
+  * Adapted to move of account.password setting
+  * Update dependencies
+
+ -- Saul Ibarra <saul@ag-projects.com>  Tue, 20 Apr 2010 11:40:22 +0200
+
 sipclients (0.14.0) unstable; urgency=low
 
   * Add ability to CANCEL re-INVITEs
