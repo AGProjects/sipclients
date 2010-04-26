@@ -145,7 +145,7 @@ class SubscriptionApplication(object):
             raise RuntimeError("XCAP is not enabled for account %s" % self.account.id)
         elif self.account.xcap.xcap_root is None:
             raise RuntimeError("XCAP root is not defined for account %s" % self.account.id)
-        elif not self.account.xcap.xcap_diff:
+        elif not self.account.xcap.use_xcap_diff:
             raise RuntimeError("XCAP-diff is not enabled for account %s" % self.account.id)
             
         for account in account_manager.iter_accounts():
