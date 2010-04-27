@@ -35,7 +35,6 @@ except ImportError:
     sys.exit(1)
 
 
-download_icon = False
 xcap_client = None
 filename = None
 
@@ -64,10 +63,10 @@ def _download_icon(url):
             except IOError, e:
                 raise RuntimeError("Cannot write icon: %s" % str(e))
 
-def _do_icon_get():
-    global xcap_client, download_icon
+def _do_icon_get(filename):
+    global xcap_client
     try:
-        res = xcap_client.get("org.openmobilealliance.xcap-directory", node="/org.openmobilealliance.xcap-directory/folder%5B@auid=%22oma_status-icon%22%5D")
+        res = xcap_client.get("org.openmobilealliance.xcap-directory", node='/xcap-directory/folder[@auid="oma_status-icon"]')
     except URLError, e:
         raise RuntimeError("Cannot GET icon: %s" % str(e))
     except HTTPError, e:
@@ -83,7 +82,7 @@ def _do_icon_get():
         print "Icons:"
         for element in root:
             print "\t%s" % element.get("uri")
-            if download_icon:
+            if filename == element.get("uri").split('/')[-1]:
                 _download_icon(element.get("uri"))
 
 def _do_icon_put(file):
@@ -106,8 +105,8 @@ def _do_icon_put(file):
         print "Icon uploaded successfully"
         print res
 
-def _do_icon_delete():
-    global xcap_client, filename
+def _do_icon_delete(filename):
+    global xcap_client
     if not filename:
         raise RuntimeError("You need to specify the filename to delete.")
 
@@ -157,11 +156,11 @@ def do_xcap_icon(operation, account_name, file):
 
     xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.auth.password, auth=None)
     if operation == "GET":
-        _do_icon_get()
+        _do_icon_get(file)
     elif operation == "PUT":
         _do_icon_put(file)
     else:
-        _do_icon_delete()
+        _do_icon_delete(file)
 
 
 if __name__ == "__main__":
@@ -170,26 +169,20 @@ if __name__ == "__main__":
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help
     parser.add_option("-a", "--account-name", type="string", dest="account_name", help="The name of the account to use.")
-    parser.add_option("-i", dest="input_filename", help="The name of the file in case we are doing a PUT.")
-    parser.add_option("-d", "--download", action="store_true", dest="download_icon", default=False, help="Download the icon.")
-    parser.add_option("-f", "--filename", type="string", dest="filename", help="Name for icon to DELETE.")
+    parser.add_option("-f", "--filename", type="string", dest="filename", help="In case of PUT it indicates the icon that is going to be uploaded. In case of DELETE it indicates the icon to be deleted. In case of GET it indicates the icon to be downloaded, and if not present all icons will be listed.")
     options, args = parser.parse_args()
 
-    if not args or args[0] not in ('GET', 'PUT', 'DELETE'):
+    if not args or args[0].upper() not in ('GET', 'PUT', 'DELETE'):
         print "You need to specify the opperation: GET, PUT or DELETE"
         sys.exit(1)
 
-    operation = args[0]
-    if (options.input_filename is None or not os.path.isfile(options.input_filename)) and operation == "PUT":
+    operation = args[0].upper()
+    if (options.filename is None or not os.path.isfile(options.filename)) and operation == 'PUT':
         print "You need to specify an input filename for doing a PUT."
         sys.exit(1)
 
-    filename = options.filename
-    if options.download_icon:
-        download_icon = True
-
     try:
-        do_xcap_icon(operation, options.account_name, options.input_filename)
+        do_xcap_icon(operation, options.account_name, options.filename)
     except RuntimeError, e:
         print "Error: %s" % str(e)
         sys.exit(1)
