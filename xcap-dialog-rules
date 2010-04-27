@@ -58,7 +58,7 @@ def get_drules():
     global drules, drules_etag, allow_rule, block_rule, polite_block_rule, allow_rule_identities, block_rule_identities, polite_block_rule_identities
 
     try:
-        doc = xcap_client.get('dialog-rules')
+        doc = xcap_client.get('org.openxcap.dialog-rules')
     except URLError, e:
         print "Cannot obtain 'dialog-rules' document: %s" % str(e)
     except HTTPError, e:
@@ -114,7 +114,7 @@ def allow_watcher(watcher):
             if str(watcher) not in allow_rule_identities:
                 allow_rule_identities.append(IdentityOne(str(watcher)))
             try:
-                res = xcap_client.put('dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
+                res = xcap_client.put('org.openxcap.dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
                 print "Cannot PUT 'dialog-rules' document: %s" % str(e)
                 drules = None
@@ -145,7 +145,7 @@ def block_watcher(watcher):
             if str(watcher) not in block_rule_identities:
                 block_rule_identities.append(IdentityOne(str(watcher)))
             try:
-                res = xcap_client.put('dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
+                res = xcap_client.put('org.openxcap.dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
                 print "Cannot PUT 'dialog-rules' document: %s" % str(e)
                 drules = None
@@ -176,7 +176,7 @@ def polite_block_watcher(watcher):
             if str(watcher) not in polite_block_rule_identities:
                 polite_block_rule_identities.append(IdentityOne(str(watcher)))
             try:
-                res = xcap_client.put('dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
+                res = xcap_client.put('org.openxcap.dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
                 print "Cannot PUT 'dialog-rules' document: %s" % str(e)
                 drules = None
@@ -216,7 +216,7 @@ def remove_watcher(watcher, allowed=True, blocked=True, pblocked=True):
                     if len(polite_block_rule_identities) == 0:
                         drules.remove(polite_block_rule)
             try:
-                res = xcap_client.put('dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
+                res = xcap_client.put('org.openxcap.dialog-rules', drules.toxml(pretty_print=True), etag=drules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
                 print "Cannot PUT 'dialog-rules' document: %s" % str(e)
                 drules = None
