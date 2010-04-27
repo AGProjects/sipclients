@@ -265,7 +265,7 @@ class SubscriptionApplication(object):
         else:
             status = ': %s' % notification.data.reason
         self.output.put('Subscription failed at %s:%d;transport=%s%s' % (route.address, route.port, route.transport, status))
-        if self.stopping or notification.data.code in (401, 403, 407) or self.success:
+        if self.stopping or notification.data.code in (401, 403, 407, 489) or self.success:
             self.success = False
             self.stop()
         else:
