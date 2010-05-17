@@ -1441,10 +1441,26 @@ class SIPSessionApplication(SIPApplication):
         notification_center.remove_observer(self, sender=notification.sender)
 
     def _NH_AudioStreamICENegotiationDidSucceed(self, notification):
+        send_notice(" ")
         send_notice("ICE negotiation succeeded in %s" % notification.data.duration)
+        if self.rtp_statistics:
+            send_notice(" ")
+            send_notice("Local ICE candidates:")
+            for candidate in notification.data.local_candidates:
+                send_notice("(%s)\t %-25s\t type %s" % ("RTP" if candidate[1] == "1" else "RTCP", candidate[2], candidate[3]))
+            send_notice(" ")
+            send_notice("Remote ICE candidates:")
+            for candidate in notification.data.remote_candidates:
+                send_notice("(%s)\t %-25s\t type %s" % ("RTP" if candidate[1] == "1" else "RTCP", candidate[2], candidate[3]))
+            send_notice(" ")
+            send_notice("ICE connectivity check results:")
+            for check in notification.data.connectivity_checks_results:
+                send_notice("(%s)\t %s <--> %s \t%s" % ("RTP" if check[1] == "1" else "RTCP", check[2], check[3], check[5]))
+            send_notice(" ")
 
     def _NH_AudioStreamICENegotiationDidFail(self, notification):
         stream = notification.sender
+        send_notice("\n")
         send_notice("ICE negotiation failed: %s" % notification.data.reason)
 
     # command handlers
@@ -1585,11 +1601,11 @@ class SIPSessionApplication(SIPApplication):
         if new_state:
             self.rtp_statistics = RTPStatisticsThread()
             self.rtp_statistics.start()
-            send_notice('Output of RTP statistics on console is now activated')
+            send_notice('Output of RTP statistics and ICE negotiation results on console is now activated')
         else:
             self.rtp_statistics.stop()
             self.rtp_statistics = None
-            send_notice('Output of RTP statistics on console is now dectivated')
+            send_notice('Output of RTP statistics and ICE negotiation results on console is now dectivated')
 
     def _CH_mute(self, state='toggle'):
         if state == 'toggle':
@@ -1888,7 +1904,7 @@ class SIPSessionApplication(SIPApplication):
         if isinstance(self.account, BonjourAccount):
             lines.append('  /neighbours: show the list of bonjour neighbours')
         lines.append('  /trace [[+|-]sip] [[+|-]msrp] [[+|-]pjsip] [[+|-]notifications]: toggle/set tracing on the console (ctrl-x s | ctrl-x m | ctrl-x j | ctrl-x n)')
-        lines.append('  /rtp [on|off]: toggle/set printing RTP statistics on the console (ctrl-x p)')
+        lines.append('  /rtp [on|off]: toggle/set printing RTP statistics and ICE negotiation results on the console (ctrl-x p)')
         lines.append('  /mute [on|off]: mute the microphone (ctrl-x u)')
         lines.append('  /input [device]: change audio input device (ctrl-x i)')
         lines.append('  /output [device]: change audio output device (ctrl-x o)')
