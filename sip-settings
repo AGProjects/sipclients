@@ -30,7 +30,7 @@ def format_child(obj, attrname, maxchars):
         if maxchars is not None:
             maxchars -= len(attrname)+4
             if len(string) > maxchars:
-                string = '(..)'+string[-(maxchars-4):]
+                string = string[:maxchars-3]+'...'
         linebuf += ' = ' + string
     return linebuf
 
