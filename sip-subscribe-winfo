@@ -514,23 +514,27 @@ class WinfoApplication(object):
         except ParserError, e:
             self.output.put("Got illegal winfo document: %s\n%s" % (str(e), body))
         else:
-            buf = ["Received NOTIFY:", "----"]
             sip_id = 'sip:%s' % self.account.id
-            wlist = self.winfo[sip_id]
-            buf.append("Active watchers:")
-            for watcher in wlist.active:
-                buf.append("  %s" % watcher)
-            buf.append("Terminated watchers:")
-            for watcher in wlist.terminated:
-                buf.append("  %s" % watcher)
-            buf.append("Pending watchers:")
-            for watcher in wlist.pending:
-                buf.append("  %s" % watcher)
-            buf.append("Waiting watchers:")
-            for watcher in wlist.waiting:
-                buf.append("  %s" % watcher)
-            buf.append("----")
-            self.output.put('\n'.join(buf))
+            try:
+                wlist = self.winfo[sip_id]
+            except KeyError:
+                self.output.put("Expected an entry for account %s in the winfo document" % sip_id)
+            else:
+                buf = ["Received NOTIFY:", "----"]
+                buf.append("Active watchers:")
+                for watcher in wlist.active:
+                    buf.append("  %s" % watcher)
+                buf.append("Terminated watchers:")
+                for watcher in wlist.terminated:
+                    buf.append("  %s" % watcher)
+                buf.append("Pending watchers:")
+                for watcher in wlist.pending:
+                    buf.append("  %s" % watcher)
+                buf.append("Waiting watchers:")
+                for watcher in wlist.waiting:
+                    buf.append("  %s" % watcher)
+                buf.append("----")
+                self.output.put('\n'.join(buf))
             for watcher in result.get(sip_id, ()):
                 if (watcher.status == 'pending' or watcher.status == 'waiting') and watcher not in self.pending and self.xcap_client is not None:
                     self.pending.append(watcher)
