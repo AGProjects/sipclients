@@ -131,36 +131,6 @@ class RTPStatisticsThread(Thread):
         self.stopped = True
 
 
-class NATDetector(object):
-    implements(IObserver)
-
-    def __init__(self):
-        self.application = None
-        notification_center = NotificationCenter()
-        notification_center.add_observer(self, name='SIPApplicationDidStart')
-
-    def handle_notification(self, notification):
-        handler = getattr(self, '_NH_%s' % notification.name, Null)
-        handler(notification)
-
-    def _NH_SIPApplicationDidStart(self, notification):
-        self.application = notification.sender
-        notification_center = NotificationCenter()
-        lookup = DNSLookup()
-        notification_center.add_observer(self, name='SIPEngineDetectedNATType')
-        notification_center.add_observer(self, sender=lookup)
-        lookup.lookup_service(SIPURI(host=self.application.account.id.domain), 'stun')
-
-    def _NH_SIPEngineDetectedNATType(self, notification):
-        if notification.data.succeeded:
-            self.application.output.put('Detected NAT type: %s\n' % notification.data.nat_type)
-
-    def _NH_DNSLookupDidSucceed(self, notification):
-        engine = Engine()
-        stun_server, stun_port = notification.data.result[0]
-        engine.detect_nat_type(stun_server, stun_port)
-
-
 class SIPAudioApplication(SIPApplication):
     def __init__(self):
         self.account = None
@@ -182,7 +152,6 @@ class SIPAudioApplication(SIPApplication):
         self.ip_address_monitor = IPAddressMonitor()
         self.logger = None
         self.rtp_statistics = None
-        self.nat_detector = NATDetector()
 
         self.alert_tone_generator = None
         self.voice_tone_generator = None
@@ -361,6 +330,11 @@ class SIPAudioApplication(SIPApplication):
             self.input.stop()
         self.output.stop()
         self.output.join()
+
+    def _NH_SIPEngineDetectedNATType(self, notification):
+        SIPApplication._NH_SIPEngineDetectedNATType(self, notification)
+        if notification.data.succeeded:
+            self.output.put('Detected NAT type: %s' % notification.data.nat_type)
 
     def _NH_SIPApplicationGotInput(self, notification):
         engine = Engine()

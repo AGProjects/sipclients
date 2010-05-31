@@ -105,34 +105,6 @@ class RTPStatisticsThread(Thread):
         self.stopped = True
 
 
-class NATDetector(object):
-    implements(IObserver)
-
-    def __init__(self):
-        notification_center = NotificationCenter()
-        notification_center.add_observer(self, name='SIPApplicationDidStart')
-
-    def handle_notification(self, notification):
-        handler = getattr(self, '_NH_%s' % notification.name, Null())
-        handler(notification)
-
-    def _NH_SIPApplicationDidStart(self, notification):
-        notification_center = NotificationCenter()
-        lookup = DNSLookup()
-        notification_center.add_observer(self, name='SIPEngineDetectedNATType')
-        notification_center.add_observer(self, sender=lookup)
-        lookup.lookup_service(SIPURI(host=notification.sender.account.id.domain), 'stun')
-
-    def _NH_SIPEngineDetectedNATType(self, notification):
-        if notification.data.succeeded:
-            send_notice('Detected NAT type: %s' % notification.data.nat_type)
-
-    def _NH_DNSLookupDidSucceed(self, notification):
-        engine = Engine()
-        stun_server, stun_port = notification.data.result[0]
-        engine.detect_nat_type(stun_server, stun_port)
-
-
 class OutgoingCallInitializer(object):
     implements(IObserver)
 
@@ -955,7 +927,6 @@ class SIPSessionApplication(SIPApplication):
         self.ip_address_monitor = IPAddressMonitor()
         self.logger = None
         self.rtp_statistics = None
-        self.nat_detector = None
 
         self.hold_tone = None
 
@@ -1075,9 +1046,6 @@ class SIPSessionApplication(SIPApplication):
             settings.audio.output_device = None
             settings.audio.alert_device = None
 
-        if isinstance(self.account, Account):
-            self.nat_detector = NATDetector()
-
     def _NH_SIPApplicationDidStart(self, notification):
         settings = SIPSimpleSettings()
 
@@ -1103,6 +1071,11 @@ class SIPSessionApplication(SIPApplication):
         ui = UI()
         ui.stop()
         self.stopped_event.set()
+
+    def _NH_SIPEngineDetectedNATType(self, notification):
+        SIPApplication._NH_SIPEngineDetectedNATType(self, notification)
+        if notification.data.succeeded:
+            send_notice('Detected NAT type: %s' % notification.data.nat_type)
 
     def _NH_UIInputGotCommand(self, notification):
         handler = getattr(self, '_CH_%s' % notification.data.command, None)
