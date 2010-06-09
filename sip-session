@@ -1841,7 +1841,12 @@ class SIPSessionApplication(SIPApplication):
                 send_notice('Illegal argument to /record. Type /help for a list of available commands.')
                 return
             if new_state:
-                audio_stream.start_recording()
+                settings = SIPSimpleSettings()
+                direction = self.active_session.direction
+                remote = "%s@%s" % (self.active_session.remote_identity.uri.user, self.active_session.remote_identity.uri.host)
+                filename = "%s-%s-%s.wav" % (datetime.now().strftime("%Y%m%d-%H%M%S"), remote, direction)
+                path = os.path.join(settings.audio.directory.normalized, self.active_session.account.id)
+                audio_stream.start_recording(os.path.join(path, filename))
             else:
                 audio_stream.stop_recording()
 

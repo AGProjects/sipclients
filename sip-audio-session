@@ -533,7 +533,11 @@ class SIPAudioApplication(SIPApplication):
             if audio_stream.recording_active:
                 audio_stream.stop_recording()
             else:
-                audio_stream.start_recording()
+                direction = session.direction
+                remote = "%s@%s" % (session.remote_identity.uri.user, session.remote_identity.uri.host)
+                filename = "%s-%s-%s.wav" % (datetime.now().strftime("%Y%m%d-%H%M%S"), remote, direction)
+                path = os.path.join(settings.audio.directory.normalized, session.account.id)
+                audio_stream.start_recording(os.path.join(path, filename))
         elif notification.data.input == 'p':
             if self.rtp_statistics is None:
                 self.rtp_statistics = RTPStatisticsThread(self)
