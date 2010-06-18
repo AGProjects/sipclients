@@ -1235,17 +1235,20 @@ class SIPSessionApplication(SIPApplication):
             send_notice('SIP session with %s ended by %s party' % (identity, notification.data.originator))
         else:
             send_notice('SIP session with %s ended due to error: %s' % (identity, notification.data.end_reason))
-        duration = session.end_time - session.start_time
-        seconds = duration.seconds if duration.microseconds < 500000 else duration.seconds+1
-        minutes, seconds = seconds / 60, seconds % 60
-        hours, minutes = minutes / 60, minutes % 60
-        hours += duration.days*24
-        if not minutes and not hours:
-            duration_text = '%d seconds' % seconds
-        elif not hours:
-            duration_text = '%02d:%02d' % (minutes, seconds)
+        if session.start_time:
+            duration = session.end_time - session.start_time
+            seconds = duration.seconds if duration.microseconds < 500000 else duration.seconds+1
+            minutes, seconds = seconds / 60, seconds % 60
+            hours, minutes = minutes / 60, minutes % 60
+            hours += duration.days*24
+            if not minutes and not hours:
+                duration_text = '%d seconds' % seconds
+            elif not hours:
+                duration_text = '%02d:%02d' % (minutes, seconds)
+            else:
+                duration_text = '%02d:%02d:%02d' % (hours, minutes, seconds)
         else:
-            duration_text = '%02d:%02d:%02d' % (hours, minutes, seconds)
+            duration_text = '0s'
         send_notice('Session duration was %s' % duration_text)
 
         if session in self.connected_sessions:
