@@ -1265,6 +1265,8 @@ class SIPSessionApplication(SIPApplication):
             else:
                 self.active_session = None
             self._update_prompt()
+        if session is self.outgoing_session:
+            self.outgoing_session = None
 
         on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
         if not on_hold_streams and self.hold_tone:
