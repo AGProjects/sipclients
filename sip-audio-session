@@ -334,7 +334,7 @@ class SIPAudioApplication(SIPApplication):
     def _NH_SIPEngineDetectedNATType(self, notification):
         SIPApplication._NH_SIPEngineDetectedNATType(self, notification)
         if notification.data.succeeded:
-            self.output.put('Detected NAT type: %s' % notification.data.nat_type)
+            self.output.put('Detected NAT type: %s\n' % notification.data.nat_type)
 
     def _NH_SIPApplicationGotInput(self, notification):
         engine = Engine()
