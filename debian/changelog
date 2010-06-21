@@ -1,3 +1,19 @@
+sipclients (0.15.0) unstable; urgency=low
+
+  * Fixed xcap_diff settings name
+  * Exit if 489 is received for xcapdiff subscription
+  * Reworked xcap-icon options and fixed document selector
+  * Fixed dialog-rules auid
+  * Added ICE debug to the console output
+  * Improved formatting of long configuration values
+  * Improved error handling in sip-subscribe-winfo
+  * Fixed calls to AudioStream.start_recording
+  * Use the builtin NAT detector
+  * Avoid error when printing session duration if it failed to start 
+  * Release reference to sessio when it ended abnormally
+
+ -- Saul Ibarra <saul@ag-projects.com>  Mon, 21 Jun 2010 13:03:32 +0200
+
 sipclients (0.14.2) unstable; urgency=low
 
   * Raised python-sipsimple version dependency
