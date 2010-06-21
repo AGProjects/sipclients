@@ -10,7 +10,7 @@ Homepage: http://sipsimpleclient.com
 Package: sipclients
 Section: net
 Architecture: all
-Depends: ${python:Depends}, ${misc:Depends}, python-sipsimple (>= 0.15.0), python-xcaplib (>= 1.0.11), python-application (>= 1.2.4), python-twisted-core, python-zope.interface, python-imaging
+Depends: ${python:Depends}, ${misc:Depends}, python-sipsimple (>= 0.15.0), python-xcaplib (>= 1.0.14), python-application (>= 1.2.4), python-twisted-core, python-zope.interface, python-imaging
 Conflicts: sipsimple-cli
 Description: SIP SIMPLE Command Line Clients
  This package contains Command Line Clients for testing SIP SIMPLE client
