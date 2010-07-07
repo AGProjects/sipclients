@@ -173,7 +173,7 @@ if __name__ == "__main__":
     options, args = parser.parse_args()
 
     if not args or args[0].upper() not in ('GET', 'PUT', 'DELETE'):
-        print "You need to specify the opperation: GET, PUT or DELETE"
+        print "You need to specify the operation: GET, PUT or DELETE"
         sys.exit(1)
 
     operation = args[0].upper()
