@@ -1790,14 +1790,14 @@ class SIPSessionApplication(SIPApplication):
             else:
                 notification_center = NotificationCenter()
                 for digit in tones:
-                    audio_stream.send_dtmf(digit)
                     filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
                     wave_player = WavePlayer(self.voice_audio_mixer, ResourcePath(filename).normalized)
                     notification_center.add_observer(self, sender=wave_player)
                     if self.active_session.account.rtp.inband_dtmf:
                         audio_stream.bridge.add(wave_player)
                     else:
-                        self.voice_audio_bridge.add(wave_player)
+                        audio_stream.send_dtmf(digit)
+                    self.voice_audio_bridge.add(wave_player)
                     wave_player.start()
                     api.sleep(0.3)
 
