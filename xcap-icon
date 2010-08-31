@@ -22,7 +22,7 @@ from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.settings import SIPSimpleSettings
-from sipsimple.payloads.icon import Icon, Data
+from sipsimple.payloads.prescontent import PresenceContent, Data
 
 from sipclient.configuration import config_filename
 from sipclient.configuration.account import AccountExtension
@@ -94,7 +94,7 @@ def _do_icon_put(file):
         img = img.resize((256, 256), Image.BICUBIC)
         out = StringIO()
         img.save(out, format=format)
-        icon = Icon(data=Data(base64.encodestring(out.getvalue())))
+        icon = PresenceContent(data=Data(base64.encodestring(out.getvalue())))
         kwargs = {'filename': new_filename}
         res = xcap_client.put("oma_status-icon", icon.toxml(), headers={'Content-Type': "application/vnd.oma.pres-content+xml"}, **kwargs)
     except (URLError, IOError, httplib.BadStatusLine), e:
