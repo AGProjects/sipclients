@@ -204,6 +204,8 @@ class SIPMessageApplication(SIPApplication):
                 notification_center.add_observer(self, sender=lookup)
                 if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
                     uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
+                elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
+                    uri = SIPURI(host=self.account.id.domain)
                 else:
                     uri = self.target
                 lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
@@ -234,6 +236,8 @@ class SIPMessageApplication(SIPApplication):
             notification_center.add_observer(self, sender=lookup)
             if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
                 uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
+            elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
+                uri = SIPURI(host=self.account.id.domain)
             else:
                 uri = self.target
             lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
