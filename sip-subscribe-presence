@@ -276,7 +276,7 @@ class SubscriptionApplication(object):
                 self.subscription.subscribe(timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.headers.get("Content-Type", (None, None))[0] == PIDF.content_type:
+        if notification.data.content_type == PIDF.content_type:
             self.output.put('Received NOTIFY:')
             try:
                 pidf = PIDF.parse(notification.data.body)

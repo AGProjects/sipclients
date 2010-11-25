@@ -295,7 +295,7 @@ class WinfoApplication(object):
                 self.subscription.subscribe(timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.headers.get("Content-Type", (None, None))[0] == WatcherInfo.content_type:
+        if notification.data.content_type == WatcherInfo.content_type:
             self._handle_winfo(notification.data.body)
 
     def _NH_DNSLookupDidSucceed(self, notification):

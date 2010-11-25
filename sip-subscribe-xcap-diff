@@ -279,7 +279,7 @@ class SubscriptionApplication(object):
                 self.subscription.subscribe(body=self.body, content_type=self.content_type, timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.headers.get("Content-Type", (None, None))[0]== XCAPDiff.content_type:
+        if notification.data.content_type == XCAPDiff.content_type:
             try:
                 xcap_diff = XCAPDiff.parse(notification.data.body)
             except ParserError, e:

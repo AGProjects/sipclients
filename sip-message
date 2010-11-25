@@ -279,7 +279,7 @@ class SIPMessageApplication(SIPApplication):
         identity.parameters = {}
         identity.uri.parameters = {}
         identity = identity.body
-        content_type = '%s/%s' % (notification.data.content_type, notification.data.content_subtype)
+        content_type = notification.data.content_type
         body = notification.data.body
         self.output.put("Got MESSAGE from '%s', Content-Type: %s\n%s\n" % (identity, content_type, body))
 
