@@ -1,3 +1,10 @@
+sipclients (0.15.2) unstable; urgency=low
+
+  * Adapted to changes in notifications
+  * Updated python-sipsimple dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Fri, 26 Nov 2010 16:08:51 +0100
+
 sipclients (0.15.1) unstable; urgency=low
 
   * Added python-lxml dependency
