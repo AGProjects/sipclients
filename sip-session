@@ -1238,7 +1238,7 @@ class SIPSessionApplication(SIPApplication):
         notification_center = NotificationCenter()
         session = notification.sender
         notification_center.remove_observer(self, sender=session)
-        for stream in session.streams or session.proposed_streams:
+        for stream in session.streams or session.proposed_streams or []:
             notification_center.remove_observer(self, sender=stream)
 
         ui = UI()
