@@ -159,12 +159,13 @@ class RegistrationApplication(SIPApplication):
                 return
             else:
                 self.account = possible_accounts[0]
-        self.account.sip.register = True
+        if isinstance(self.account, Account):
+            self.account.sip.register = True
         self.output.put('Using account %s\n' % self.account.id)
         notification_center.add_observer(self, sender=self.account)
         if self.account is BonjourAccount() and self.max_registers is not None:
             if self.max_registers == 1:
-                self.max_registers = len(self.account.sip.transport_list)
+                self.max_registers = len([transport for transport in settings.sip.transport_list if (transport!='tls' or self.account.tls.certificate is not None)])
             else:
                 self.output.put('--max-registers option only accepts 0 or 1 if using Bonjour account\n')
                 self.output.stop()
