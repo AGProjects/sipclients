@@ -9,7 +9,6 @@ import signal
 
 from datetime import datetime
 from itertools import chain
-from operator import attrgetter
 from optparse import OptionParser
 from threading import Event, Thread
 from time import sleep
@@ -59,21 +58,11 @@ def send_notice(text, bold=True):
 #
 
 class BonjourNeighbour(object):
-    def __init__(self, uri, display_name=None):
-        self.uri = uri
+    def __init__(self, uri, neighbour, display_name, host):
         self.display_name = display_name
-
-    def __hash__(self):
-        return hash(self.uri)
-
-    def __eq__(self, other):
-        if isinstance(other, BonjourNeighbour):
-            return self.uri == other.uri and self.display_name == other.display_name
-        else:
-            return self.uri == other
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
+        self.host = host
+        self.neighbour = neighbour
+        self.uri = uri
 
 
 class RTPStatisticsThread(Thread):
@@ -924,7 +913,7 @@ class SIPSessionApplication(SIPApplication):
         self.connected_sessions = []
         self.sessions_with_proposals = set()
         self.hangup_timers = {}
-        self.neighbours = set()
+        self.neighbours = {}
         self.registration_succeeded = False
         self.stopped_event = Event()
 
@@ -1146,17 +1135,40 @@ class SIPSessionApplication(SIPApplication):
         send_notice('%s Registration ended.' % datetime.now().replace(microsecond=0))
 
     def _NH_BonjourAccountDidAddNeighbour(self, notification):
-        if notification.data.uri not in self.neighbours:
-            send_notice('%s Discovered Bonjour neighbour: "%s" <%s>' % (datetime.now().replace(microsecond=0), notification.data.display_name, notification.data.uri))
-            self.neighbours.add(BonjourNeighbour(notification.data.uri, notification.data.display_name))
+        neighbour = notification.data.neighbour
+        display_name = notification.data.display_name or 'Unknown'
+        host = notification.data.host
+        uri = notification.data.uri
+        now = datetime.now().replace(microsecond=0)
+        send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, display_name, host, uri))
+        self.neighbours[neighbour] = BonjourNeighbour(uri, neighbour, display_name, host)
+
+    def _NH_BonjourAccountDidUpdateNeighbour(self, notification):
+        neighbour = notification.data.neighbour
+        display_name = notification.data.display_name or 'Unknown'
+        host = notification.data.host
+        uri = notification.data.uri
+        now = datetime.now().replace(microsecond=0)
+        try:
+            bonjour_neighbour = self.neighbours[neighbour]
+        except KeyError:
+            send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, display_name, host, uri))
+            self.neighbours[neighbour] = BonjourNeighbour(uri, neighbour, display_name, host)
+        else:
+            send_notice('%s Updated Bonjour neighbour: "%s (%s)" <%s>' % (now, display_name, host, uri))
+            bonjour_neighbour.display_name = display_name
+            bonjour_neighbour.host = host
+            bonjour_neighbour.uri = uri
 
     def _NH_BonjourAccountDidRemoveNeighbour(self, notification):
-        if notification.data.uri in self.neighbours:
-            send_notice('%s Bonjour neighbour left: %s' % (datetime.now().replace(microsecond=0), notification.data.uri))
-            self.neighbours.remove(notification.data.uri)
-
-    def _NH_BonjourAccountWillRestartDiscovery(self, notification):
-        self.neighbours.clear()
+        neighbour = notification.data.neighbour
+        now = datetime.now().replace(microsecond=0)
+        try:
+            bonjour_neighbour = self.neighbours.pop(neighbour)
+        except KeyError:
+            pass
+        else:
+            send_notice('%s Bonjour neighbour left: "%s (%s)" <%s>' % (now, bonjour_neighbour.display_name, bonjour_neighbour.host, bonjour_neighbour.uri))
 
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
@@ -1520,11 +1532,8 @@ class SIPSessionApplication(SIPApplication):
             send_notice('This command is only available if using the Bonjour account')
             return
         lines = ['Bonjour neighbours:']
-        for neighbour in sorted(self.neighbours, key=attrgetter('display_name', 'uri')):
-            if neighbour.display_name:
-                lines.append('  "%s" <%s>' % (neighbour.display_name, neighbour.uri))
-            else:
-                lines.append('  %s' % neighbour.uri)
+        for key, neighbour in self.neighbours.iteritems():
+            lines.append(' "%s (%s)" <%s>' % (neighbour.display_name, neighbour.host, neighbour.uri))
         send_notice(lines)
 
     def _CH_trace(self, *types):
