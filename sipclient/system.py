@@ -9,7 +9,9 @@ from application.notification import NotificationCenter
 from application.system import host
 from eventlet import api
 
-from sipsimple.util import TimestampedNotificationData, run_in_green_thread, run_in_twisted_thread
+from sipsimple.threading import run_in_twisted_thread
+from sipsimple.threading.green import run_in_green_thread
+from sipsimple.util import TimestampedNotificationData
 
 
 class IPAddressMonitor(object):
