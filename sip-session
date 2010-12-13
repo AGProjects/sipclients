@@ -58,7 +58,7 @@ def send_notice(text, bold=True):
 #
 
 class BonjourNeighbour(object):
-    def __init__(self, uri, neighbour, display_name, host):
+    def __init__(self, neighbour, uri, display_name, host):
         self.display_name = display_name
         self.host = host
         self.neighbour = neighbour
@@ -1141,7 +1141,7 @@ class SIPSessionApplication(SIPApplication):
         uri = notification.data.uri
         now = datetime.now().replace(microsecond=0)
         send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, display_name, host, uri))
-        self.neighbours[neighbour] = BonjourNeighbour(uri, neighbour, display_name, host)
+        self.neighbours[neighbour] = BonjourNeighbour(neighbour, uri, display_name, host)
 
     def _NH_BonjourAccountDidUpdateNeighbour(self, notification):
         neighbour = notification.data.neighbour
@@ -1153,7 +1153,7 @@ class SIPSessionApplication(SIPApplication):
             bonjour_neighbour = self.neighbours[neighbour]
         except KeyError:
             send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, display_name, host, uri))
-            self.neighbours[neighbour] = BonjourNeighbour(uri, neighbour, display_name, host)
+            self.neighbours[neighbour] = BonjourNeighbour(neighbour, uri, display_name, host)
         else:
             send_notice('%s Updated Bonjour neighbour: "%s (%s)" <%s>' % (now, display_name, host, uri))
             bonjour_neighbour.display_name = display_name
