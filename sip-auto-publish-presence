@@ -25,9 +25,7 @@ from application.python.queue import EventQueue
 from eventlet.twistedutil import join_reactor
 from twisted.internet.error import ReactorNotRunning
 from twisted.internet import reactor
-from twisted.python import threadable
 from zope.interface import implements
-
 
 from sipsimple.core import Engine, FromHeader, Publication, PublicationError, RouteHeader, SIPCoreError, SIPURI
 from sipsimple.account import Account, AccountManager, BonjourAccount
@@ -39,6 +37,7 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.payloads import BuilderError
 from sipsimple.payloads.presdm import Contact, Device, DeviceNote, DeviceTimestamp, Person, PersonNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
 from sipsimple.payloads.rpid import Activities, Mood, PlaceIs, Privacy, StatusIcon, TimeOffset, UserInput
+from sipsimple.threading import run_in_twisted_thread
 from sipsimple.util import Route
 
 from sipclient.configuration import config_filename
@@ -344,18 +343,14 @@ class AutoPublicationApplication(object):
         elif key == '?':
             self.print_help()
 
+    @run_in_twisted_thread
     def _NH_SIPEngineDidEnd(self, notification):
-        if threadable.isInIOThread():
-            self._stop_reactor()
-        else:
-            reactor.callFromThread(self._stop_reactor)
+        self._stop_reactor()
 
+    @run_in_twisted_thread
     def _NH_SIPEngineDidFail(self, notification):
         self.output.put('Engine failed.')
-        if threadable.isInIOThread():
-            self._stop_reactor()
-        else:
-            reactor.callFromThread(self._stop_reactor)
+        self._stop_reactor()
 
     def _NH_SIPEngineGotException(self, notification):
         self.output.put('An exception occured within the SIP core:\n'+notification.data.traceback)

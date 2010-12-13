@@ -19,7 +19,6 @@ from application.python.queue import EventQueue
 from eventlet.twistedutil import join_reactor
 from twisted.internet import reactor
 from twisted.internet.error import ReactorNotRunning
-from twisted.python import threadable
 from urllib2 import URLError
 from xcaplib.client import XCAPClient
 from xcaplib.error import HTTPError
@@ -35,6 +34,7 @@ from sipsimple.payloads import ParserError
 from sipsimple.payloads.watcherinfo import WatcherInfo
 from sipsimple.payloads.policy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
 from sipsimple.payloads.presrules import AllDevices, AllPersons, AllServices, PresRules, ProvideAllAttributes, ProvideDevices, ProvidePersons, ProvideServices, SubHandling
+from sipsimple.threading import run_in_twisted_thread
 from sipsimple.util import Route
 
 from sipclient.configuration import config_filename
@@ -343,18 +343,14 @@ class WinfoApplication(object):
             if len(self.pending) > 0:
                 self.output.put("%s watcher %s wants to subscribe to your presence information. Press (a) for allow, (d) for deny or (p) for polite blocking:" % (self.pending[0].status.capitalize(), self.pending[0]))
 
+    @run_in_twisted_thread
     def _NH_SIPEngineDidEnd(self, notification):
-        if threadable.isInIOThread():
-            self._stop_reactor()
-        else:
-            reactor.callFromThread(self._stop_reactor)
+        self._stop_reactor()
 
+    @run_in_twisted_thread
     def _NH_SIPEngineDidFail(self, notification):
         self.output.put('Engine failed.')
-        if threadable.isInIOThread():
-            self._stop_reactor()
-        else:
-            reactor.callFromThread(self._stop_reactor)
+        self._stop_reactor()
 
     def _NH_SIPEngineGotException(self, notification):
         self.output.put('An exception occured within the SIP core:\n'+notification.data.traceback)
