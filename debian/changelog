@@ -1,3 +1,13 @@
+sipclients (0.16.5) unstable; urgency=low
+
+  * Adapt to changes in Bonjour neighbours handling
+  * Fixed accessing nonexistent attributes in Bonjour account
+  * Fixed exception when closing session without streams
+  * Adapted to the latest package changes in sipsimple
+  * Updated version number to match SIPSIMPLE SDK
+
+ -- Saul Ibarra <saul@ag-projects.com>  Tue, 14 Dec 2010 18:58:49 +0100
+
 sipclients (0.15.2) unstable; urgency=low
 
   * Adapted to changes in notifications
