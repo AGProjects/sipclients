@@ -274,7 +274,13 @@ class SubscriptionApplication(object):
             else:
                 route = self._subscription_routes.popleft()
                 route_header = RouteHeader(route.get_uri())
-                self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name), self.target, ContactHeader(self.account.contact[route.transport]), "xcap-diff", route_header, credentials=self.account.credentials, refresh=self.account.sip.subscribe_interval)
+                self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name),
+                                                 self.target,
+                                                 ContactHeader(self.account.contact[route]),
+                                                 "xcap-diff",
+                                                 route_header,
+                                                 credentials=self.account.credentials,
+                                                 refresh=self.account.sip.subscribe_interval)
                 notification_center.add_observer(self, sender=self.subscription)
                 self.subscription.subscribe(body=self.body, content_type=self.content_type, timeout=5)
 
@@ -293,7 +299,13 @@ class SubscriptionApplication(object):
         self._subscription_routes = deque(notification.data.result)
         route = self._subscription_routes.popleft()
         route_header = RouteHeader(route.get_uri())
-        self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name), self.target, ContactHeader(self.account.contact[route.transport]), "xcap-diff", route_header, credentials=self.account.credentials, refresh=self.account.sip.subscribe_interval)
+        self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name),
+                                         self.target,
+                                         ContactHeader(self.account.contact[route]),
+                                         "xcap-diff",
+                                         route_header,
+                                         credentials=self.account.credentials,
+                                         refresh=self.account.sip.subscribe_interval)
         notification_center = NotificationCenter()
         notification_center.add_observer(self, sender=self.subscription)
         self.subscription.subscribe(body=self.body, content_type=self.content_type, timeout=5)

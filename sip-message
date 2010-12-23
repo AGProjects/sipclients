@@ -180,12 +180,12 @@ class SIPMessageApplication(SIPApplication):
         self.ip_address_monitor.start()
 
         if isinstance(self.account, BonjourAccount) and self.target is None:
-            contacts = []
             for transport in settings.sip.transport_list:
-                contacts.append(self.account.contact[transport])
-            for contact in contacts:
-                self.output.put('Listening on: sip:%s@%s:%d;transport=%s\n' % (contact.user, contact.host, contact.port, contact.parameters['transport'] if 'transport' in contact.parameters else 'udp'))
-        
+                try:
+                    self.output.put('Listening on: %s\n' % self.account.contact[transport])
+                except KeyError:
+                    pass
+
         if self.target is not None:
             if '@' not in self.target:
                 self.target = '%s@%s' % (self.target, self.account.id.domain)
