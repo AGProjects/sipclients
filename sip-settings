@@ -17,6 +17,7 @@ from sipsimple.configuration import ConfigurationError, ConfigurationManager, De
 from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.datatypes import List, STUNServerAddress
 from sipsimple.configuration.settings import SIPSimpleSettings
+from sipsimple.threading import ThreadManager
 
 from sipclient.configuration import config_filename
 from sipclient.configuration.account import AccountExtension
@@ -344,6 +345,8 @@ if __name__ == '__main__':
 
     # execute the handlers
     try:
+        thread_manager = ThreadManager()
+        thread_manager.start()
         if options.account:
             object = AccountConfigurator(options.config_file)
         else:
@@ -365,5 +368,7 @@ if __name__ == '__main__':
             sys.stderr.write("Error: illegal usage of command %s\n" % command)
             parser.print_usage()
             sys.exit(1)
+    finally:
+        thread_manager.stop()
 
 
