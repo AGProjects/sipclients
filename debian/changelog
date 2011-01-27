@@ -1,3 +1,11 @@
+sipclients (0.17.0) unstable; urgency=low
+
+  * Adapted to changes in account contact building
+  * Fixed saving settings after ThreadManager was introduced in the middleware
+  * Removed obsolete option
+
+ -- Saul Ibarra <saul@ag-projects.com>  Thu, 27 Jan 2011 13:23:52 +0100
+
 sipclients (0.16.5) unstable; urgency=low
 
   * Adapt to changes in Bonjour neighbours handling
