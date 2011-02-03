@@ -27,7 +27,11 @@ from sipclient.configuration.settings import SIPSimpleSettingsExtension
 def format_child(obj, attrname, maxchars):
     linebuf = attrname
     if isinstance(getattr(type(obj), attrname, None), Setting):
-        string = str(getattr(obj, attrname))
+        attr = getattr(obj, attrname)
+        if isinstance(attr, unicode):
+            string = attr.encode(sys.getfilesystemencoding())
+        else:
+            string = str(attr)
         if maxchars is not None:
             maxchars -= len(attrname)+4
             if len(string) > maxchars:
@@ -80,6 +84,10 @@ class SettingsParser(object):
                 return True
             else:
                 return False
+        elif issubclass(type, unicode):
+            if isinstance(value, str):
+                return value.decode(sys.getfilesystemencoding())
+            return value
         else:
             return value
 

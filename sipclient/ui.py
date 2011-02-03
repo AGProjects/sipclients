@@ -65,7 +65,11 @@ class RichText(object):
         self.blink = blink
 
     def __str__(self):
-        return '\x1b[%sm%s\x1b[0m' % (self.mode, self.text)
+        if isinstance(self.text, unicode):
+            text = self.text.encode(sys.getfilesystemencoding())
+        else:
+            text = self.text
+        return '\x1b[%sm%s\x1b[0m' % (self.mode, text)
 
     def __len__(self):
         return len(self.text)
@@ -109,7 +113,11 @@ class CompoundRichText(RichText):
 
 class Prompt(RichText):
     def __str__(self):
-        return '\x1b[%sm%s>\x1b[0m ' % (self.mode, self.text)
+        if isinstance(self.text, unicode):
+            text = self.text.encode(sys.getfilesystemencoding())
+        else:
+            text = self.text
+        return '\x1b[%sm%s>\x1b[0m ' % (self.mode, text)
 
     def __len__(self):
         return len(self.text)+2
@@ -398,6 +406,8 @@ class UI(Thread):
     @run_in_ui_thread
     def _set_status(self, status):
         with self.lock:
+            if isinstance(status, unicode):
+                status = status.encode(sys.getfilesystemencoding())
             try:
                 old_status = self.__dict__['status']
             except KeyError:

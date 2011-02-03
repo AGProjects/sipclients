@@ -106,6 +106,12 @@ class SIPMessageApplication(SIPApplication):
         self.ip_address_monitor = IPAddressMonitor()
         self.logger = None
 
+    def _write(self, message):
+        if isinstance(message, unicode):
+            message = message.encode(sys.getfilesystemencoding())
+        sys.stdout.write(message)
+        sys.stdout.flush()
+
     def start(self, target, options):
         notification_center = NotificationCenter()
         
@@ -113,7 +119,7 @@ class SIPMessageApplication(SIPApplication):
         self.message = options.message
         self.target = target
         self.input = InputThread(read_message=self.target is not None and options.message is None, batch_mode=options.batch_mode)
-        self.output = EventQueue(lambda message: (sys.stdout.write(message), sys.stdout.flush()))
+        self.output = EventQueue(self._write)
         self.logger = Logger(sip_to_stdout=options.trace_sip, pjsip_to_stdout=options.trace_pjsip, notifications_to_stdout=options.trace_notifications)
         
         notification_center.add_observer(self, sender=self)
@@ -275,10 +281,12 @@ class SIPMessageApplication(SIPApplication):
         self.stop()
 
     def _NH_SIPEngineGotMessage(self, notification):
-        identity = FromHeader.new(notification.data.from_header)
-        identity.parameters = {}
-        identity.uri.parameters = {}
-        identity = identity.body
+        from_header = FromHeader.new(notification.data.from_header)
+        from_header.parameters = {}
+        from_header.uri.parameters = {}
+        identity = str(from_header.uri)
+        if from_header.display_name:
+            identity = '"%s" <%s>' % (from_header.display_name, identity)
         content_type = notification.data.content_type
         body = notification.data.body
         self.output.put("Got MESSAGE from '%s', Content-Type: %s\n%s\n" % (identity, content_type, body))

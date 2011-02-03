@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import signal
+import sys
 
 from datetime import datetime
 from itertools import chain
@@ -556,7 +557,7 @@ class OutgoingTransferHandler(object):
     def __init__(self, account, target, filepath):
         self.account = account
         self.target = target
-        self.filepath = filepath
+        self.filepath = filepath.decode(sys.getfilesystemencoding())
         self.file_selector = None
         self.finished = False
         self.hash_compute_proc = None
@@ -580,7 +581,7 @@ class OutgoingTransferHandler(object):
             send_notice('Computing hash...')
             def compute_hash():
                 try:
-                    self.file_selector = FileSelector.for_file(self.filepath)
+                    self.file_selector = FileSelector.for_file(self.filepath.encode('utf-8'))
                 except Exception, e:
                     send_notice('Failed to read file "%s": %s' % (self.filepath, e))
             self.hash_compute_proc = proc.spawn(compute_hash)
@@ -658,8 +659,7 @@ class OutgoingTransferHandler(object):
         identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-        stream = session.streams[0]
-        send_notice("File transfer for %s to '%s' started" % (stream.file_selector.name, identity))
+        send_notice("File transfer for %s to '%s' started" % (os.path.basename(self.filepath), identity))
 
     def _NH_SIPSessionDidFail(self, notification):
         notification_center = NotificationCenter()
@@ -724,7 +724,7 @@ class IncomingTransferHandler(object):
         settings = SIPSimpleSettings()
         stream = self.session.proposed_streams[0]
         self.file_selector = stream.file_selector
-        self.filename = filename = os.path.join(settings.file_transfer.directory.normalized, self.file_selector.name)
+        self.filename = filename = os.path.join(settings.file_transfer.directory.normalized, self.file_selector.name.decode('utf-8'))
         i = 1
         while os.path.exists(filename):
             filename = '%s.%d' % (self.filename, i)
@@ -769,7 +769,7 @@ class IncomingTransferHandler(object):
         identity = str(self.session.remote_identity.uri)
         if self.session.remote_identity.display_name:
             identity = '"%s" <%s>' % (self.session.remote_identity.display_name, identity)
-        self.question = Question("Incoming file transfer for %s from '%s', do you want to accept? (a)ccept/(r)eject" % (self.file_selector.name, identity), 'ari', bold=True)
+        self.question = Question("Incoming file transfer for %s from '%s', do you want to accept? (a)ccept/(r)eject" % (os.path.basename(self.filename), identity), 'ari', bold=True)
         notification_center.add_observer(self, sender=self.question)
         ui = UI()
         ui.add_question(self.question)
@@ -835,7 +835,7 @@ class IncomingTransferHandler(object):
         identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-        send_notice("File transfer for %s with '%s' started" % (self.file_selector.name, identity))
+        send_notice("File transfer for %s with '%s' started" % (os.path.basename(self.filename), identity))
 
         self.file_write_queue.start()
 
@@ -884,19 +884,19 @@ class IncomingTransferHandler(object):
         ui.status = None
 
         if not self.finished:
-            send_notice('File transfer of %s canceled by %s party' % (os.path.basename(self.file_selector.name), notification.data.originator))
+            send_notice('File transfer of %s canceled by %s party' % (os.path.basename(self.filename), notification.data.originator))
 
         self.file_write_queue.put(None)
         self.file_write_queue.stop()
 
     def _NH_FileTransferStreamGotChunk(self, notification):
         ui = UI()
-        ui.status = '%s: %s%%' % (os.path.basename(self.file_selector.name), notification.data.transferred_bytes*100//notification.data.file_size)
+        ui.status = '%s: %s%%' % (os.path.basename(self.filename), notification.data.transferred_bytes*100//notification.data.file_size)
         self.file_write_queue.put(notification.data.content)
 
     def _NH_FileTransferStreamDidFinish(self, notification):
         self.finished = True
-        send_notice('File transfer of %s finished (file saved to "%s").' % (os.path.basename(self.file_selector.name), self.filename))
+        send_notice('File transfer of %s finished (file saved to "%s").' % (os.path.basename(self.filename), self.filename))
 
 
 class SIPSessionApplication(SIPApplication):

@@ -150,6 +150,12 @@ class SIPAudioApplication(SIPApplication):
         self.ignore_local_hold = False
         self.ignore_local_unhold = False
 
+    def _write(self, message):
+        if isinstance(message, unicode):
+            message = message.encode(sys.getfilesystemencoding())
+        sys.stdout.write(message)
+        sys.stdout.flush()
+
     def start(self, target, options):
         notification_center = NotificationCenter()
 
@@ -159,7 +165,7 @@ class SIPAudioApplication(SIPApplication):
         self.options = options
         self.target = target
         self.input = InputThread() if not options.batch_mode else None
-        self.output = EventQueue(lambda message: (sys.stdout.write(message), sys.stdout.flush()))
+        self.output = EventQueue(self._write)
         self.logger = Logger(sip_to_stdout=options.trace_sip, pjsip_to_stdout=options.trace_pjsip, notifications_to_stdout=options.trace_notifications)
         
         notification_center.add_observer(self, sender=self)
