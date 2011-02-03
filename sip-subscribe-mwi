@@ -268,7 +268,8 @@ class SubscriptionApplication(object):
             else:
                 route = self._subscription_routes.popleft()
                 route_header = RouteHeader(route.get_uri())
-                self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name),
+                self.subscription = Subscription(self.target.uri,
+                                                 FromHeader(self.account.uri, self.account.display_name),
                                                  self.target,
                                                  ContactHeader(self.account.contact[route]),
                                                  "message-summary",
@@ -290,7 +291,8 @@ class SubscriptionApplication(object):
         self._subscription_routes = deque(notification.data.result)
         route = self._subscription_routes.popleft()
         route_header = RouteHeader(route.get_uri())
-        self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name),
+        self.subscription = Subscription(self.target.uri,
+                                         FromHeader(self.account.uri, self.account.display_name),
                                          self.target,
                                          ContactHeader(self.account.contact[route]),
                                          "message-summary",

@@ -290,7 +290,8 @@ class WinfoApplication(object):
             else:
                 route = self._subscription_routes.popleft()
                 route_header = RouteHeader(route.get_uri())
-                self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name),
+                self.subscription = Subscription(self.account.uri,
+                                                 FromHeader(self.account.uri, self.account.display_name),
                                                  ToHeader(self.account.uri, self.account.display_name),
                                                  ContactHeader(self.account.contact[route]),
                                                  "presence.winfo",
@@ -309,7 +310,8 @@ class WinfoApplication(object):
         self._subscription_routes = deque(notification.data.result)
         route = self._subscription_routes.popleft()
         route_header = RouteHeader(route.get_uri())
-        self.subscription = Subscription(FromHeader(self.account.uri, self.account.display_name),
+        self.subscription = Subscription(self.account.uri,
+                                         FromHeader(self.account.uri, self.account.display_name),
                                          ToHeader(self.account.uri, self.account.display_name),
                                          ContactHeader(self.account.contact[route]),
                                          "presence.winfo",
