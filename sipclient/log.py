@@ -235,6 +235,8 @@ class Logger(object):
         settings = SIPSimpleSettings()
         if not self.msrp_to_stdout and not settings.logs.trace_msrp:
             return
+        if getattr(notification.sender, 'socket', None) is None:
+            return
         arrow = {'incoming': '<--', 'outgoing': '-->'}[notification.data.direction]
         local_address = notification.sender.getHost()
         local_address = '%s:%d' % (local_address.host, local_address.port)
