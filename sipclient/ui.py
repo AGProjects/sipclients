@@ -95,7 +95,14 @@ class CompoundRichText(RichText):
         self.text_list = text_list
 
     def __str__(self):
-        return ''.join(str(text) for text in self.text_list)
+        txt = ''
+        for text in self.text_list:
+            if isinstance(text, unicode):
+                text = text.encode(sys.getfilesystemencoding())
+            else:
+                text = str(text)
+            txt += text
+        return txt
 
     def __len__(self):
         return sum(len(text) for text in self.text_list)
