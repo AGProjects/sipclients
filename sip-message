@@ -281,13 +281,15 @@ class SIPMessageApplication(SIPApplication):
         self.stop()
 
     def _NH_SIPEngineGotMessage(self, notification):
+        content_type = notification.data.content_type
+        if content_type not in ('text/plain', 'text/html'):
+            return
         from_header = FromHeader.new(notification.data.from_header)
         from_header.parameters = {}
         from_header.uri.parameters = {}
         identity = str(from_header.uri)
         if from_header.display_name:
             identity = '"%s" <%s>' % (from_header.display_name, identity)
-        content_type = notification.data.content_type
         body = notification.data.body
         self.output.put("Got MESSAGE from '%s', Content-Type: %s\n%s\n" % (identity, content_type, body))
 
