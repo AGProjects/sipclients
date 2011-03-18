@@ -356,7 +356,7 @@ class SIPAudioApplication(SIPApplication):
             self.voice_audio_mixer.muted = not self.voice_audio_mixer.muted
             self.output.put('The microphone is now %s\n' % ('muted' if self.voice_audio_mixer.muted else 'unmuted'))
         elif notification.data.input == 'i':
-            input_devices = [None, 'system_default'] + sorted(engine.input_devices)
+            input_devices = [None, u'system_default'] + sorted(engine.input_devices)
             if self.voice_audio_mixer.input_device in input_devices:
                 old_input_device = self.voice_audio_mixer.input_device
             else:
@@ -371,13 +371,13 @@ class SIPAudioApplication(SIPApplication):
                     old_input_device = new_input_device
                     self.output.put('Failed to set input device to %s: %s\n' % (new_input_device, str(e)))
                 else:
-                    if new_input_device == 'system_default':
+                    if new_input_device == u'system_default':
                         self.output.put('Input device changed to %s (system default device)\n' % self.voice_audio_mixer.real_input_device)
                     else:
                         self.output.put('Input device changed to %s\n' % new_input_device)
                     break
         elif notification.data.input == 'o':
-            output_devices = [None, 'system_default'] + sorted(engine.output_devices)
+            output_devices = [None, u'system_default'] + sorted(engine.output_devices)
             if self.voice_audio_mixer.output_device in output_devices:
                 old_output_device = self.voice_audio_mixer.output_device
             else:
@@ -392,13 +392,13 @@ class SIPAudioApplication(SIPApplication):
                     old_output_device = new_output_device
                     self.output.put('Failed to set output device to %s: %s\n' % (new_output_device, str(e)))
                 else:
-                    if new_output_device == 'system_default':
+                    if new_output_device == u'system_default':
                         self.output.put('Output device changed to %s (system default device)\n' % self.voice_audio_mixer.real_output_device)
                     else:
                         self.output.put('Output device changed to %s\n' % new_output_device)
                     break
         elif notification.data.input == 'a':
-            output_devices = [None, 'system_default'] + sorted(engine.output_devices)
+            output_devices = [None, u'system_default'] + sorted(engine.output_devices)
             if self.alert_audio_mixer.output_device in output_devices:
                 old_output_device = self.alert_audio_mixer.output_device
             else:
@@ -413,7 +413,7 @@ class SIPAudioApplication(SIPApplication):
                     old_output_device = new_output_device
                     self.output.put('Failed to set alert device to %s: %s\n' % (new_output_device, str(e)))
                 else:
-                    if new_output_device == 'system_default':
+                    if new_output_device == u'system_default':
                         self.output.put('Alert device changed to %s (system default device)\n' % self.alert_audio_mixer.real_output_device)
                     else:
                         self.output.put('Alert device changed to %s\n' % new_output_device)
