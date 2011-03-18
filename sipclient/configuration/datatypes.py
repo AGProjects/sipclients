@@ -17,7 +17,9 @@ from sipsimple.util import classproperty
 
 class ResourcePath(object):
     def __init__(self, path):
-        self.path = os.path.normpath(str(path))
+        if not isinstance(path, unicode):
+            path = path.decode(sys.getfilesystemencoding())
+        self.path = os.path.normpath(path)
 
     def __getstate__(self):
         return unicode(self.path)
@@ -65,7 +67,9 @@ class ResourcePath(object):
 
 class UserDataPath(object):
     def __init__(self, path):
-        self.path = os.path.normpath(str(path))
+        if not isinstance(path, unicode):
+            path = path.decode(sys.getfilesystemencoding())
+        self.path = os.path.normpath(path)
 
     def __getstate__(self):
         return unicode(self.path)
