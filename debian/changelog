@@ -1,3 +1,12 @@
+sipclients (0.18.0) unstable; urgency=low
+
+  * Adapted scripts to changes in Subscription API
+  * Avoid exception if MSRPTransportTrace notification is handled too late
+  * Fixed unicode support
+  * Only display text/plain and text/html MESSAGEs
+
+ -- Saul Ibarra <saul@ag-projects.com>  Fri, 18 Mar 2011 15:44:27 +0100
+
 sipclients (0.17.0) unstable; urgency=low
 
   * Adapted to changes in account contact building
