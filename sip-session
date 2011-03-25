@@ -1886,6 +1886,32 @@ class SIPSessionApplication(SIPApplication):
             except IllegalStateError:
                 send_notice('Cannot remove a stream while another transaction is in progress')
 
+    def _CH_add_participant(self, uri):
+        if self.active_session is None:
+            send_notice('There is no active session')
+            return
+        if re.match('^(sip:|sips:)', uri) is None:
+            uri = 'sip:%s' % uri
+        try:
+            uri = SIPURI.parse(uri)
+        except SIPCoreError:
+            send_notice('Invalid SIP URI')
+        else:
+            self.active_session.conference.add_participant(uri)
+
+    def _CH_remove_participant(self, uri):
+        if self.active_session is None:
+            send_notice('There is no active session')
+            return
+        if re.match('^(sip:|sips:)', uri) is None:
+            uri = 'sip:%s' % uri
+        try:
+            uri = SIPURI.parse(uri)
+        except SIPCoreError:
+            send_notice('Invalid SIP URI')
+        else:
+            self.active_session.conference.remove_participant(uri)
+
     # private methods
     #
 
@@ -1917,6 +1943,8 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /hold [on|off]: hold/unhold (ctrl-x SPACE)')
         lines.append('  /add {chat|audio}: add a stream to the current session')
         lines.append('  /remove {chat|audio}: remove a stream from the current session')
+        lines.append('  /add_participant {user@domain}: add the specified user to the conference')
+        lines.append('  /remove_participant {user@domain}: remove the specified user from the conference')
         send_notice(lines, bold=False)
 
     def _update_prompt(self):
