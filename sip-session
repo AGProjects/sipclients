@@ -28,14 +28,14 @@ from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.audio import WavePlayer
 from sipsimple.configuration import ConfigurationError
-from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.session import IllegalStateError, Session
 from sipsimple.streams import AudioStream, ChatStream, FileSelector, FileTransferStream
+from sipsimple.storage import FileStorage
 from sipsimple.threading.green import run_in_green_thread
 
-from sipclient.configuration import config_filename
+from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
 from sipclient.configuration.datatypes import ResourcePath
 from sipclient.configuration.settings import SIPSimpleSettingsExtension
@@ -984,7 +984,7 @@ class SIPSessionApplication(SIPApplication):
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
         try:
-            SIPApplication.start(self, FileBackend(options.config_file or config_filename))
+            SIPApplication.start(self, FileStorage(options.config_directory or config_directory))
         except ConfigurationError, e:
             send_notice("Failed to load sipclient's configuration: %s\n" % str(e), bold=False)
             send_notice("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.", bold=False)
@@ -1985,7 +1985,7 @@ if __name__ == '__main__':
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help
     parser.add_option('-a', '--account', type='string', dest='account', help='The account name to use for any outgoing traffic. If not supplied, the default account will be used.', metavar='NAME')
-    parser.add_option('-c', '--config-file', type='string', dest='config_file', help='The path to a configuration file to use. This overrides the default location of the configuration file.', metavar='FILE')
+    parser.add_option('-c', '--config-directory', type='string', dest='config_directory', help='The configuration directory to use. This overrides the default location.')
     parser.add_option('-s', '--trace-sip', action='store_true', dest='trace_sip', default=False, help='Dump the raw contents of incoming and outgoing SIP messages.')
     parser.add_option('-m', '--trace-msrp', action='store_true', dest='trace_msrp', default=False, help='Dump msrp logging information and the raw contents of incoming and outgoing MSRP messages.')
     parser.add_option('-j', '--trace-pjsip', action='store_true', dest='trace_pjsip', default=False, help='Print PJSIP logging output.')

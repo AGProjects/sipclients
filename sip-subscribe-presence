@@ -22,19 +22,20 @@ from twisted.internet import reactor
 from twisted.internet.error import ReactorNotRunning
 from zope.interface import implements
 
-from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.account import Account, AccountManager, BonjourAccount
+from sipsimple.application import SIPApplication
 from sipsimple.lookup import DNSLookup
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
-from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.settings import SIPSimpleSettings
+from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.payloads import ParserError
 from sipsimple.payloads import rpid # needed to register RPID extensions
 from sipsimple.payloads.presdm import Device, Person, PIDF, Service
+from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
 from sipsimple.util import Route
 
-from sipclient.configuration import config_filename
+from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
 from sipclient.configuration.settings import SIPSimpleSettingsExtension
 from sipclient.log import Logger
@@ -120,8 +121,9 @@ class SubscriptionApplication(object):
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
+        SIPApplication.storage = FileStorage(config_directory)
         try:
-            configuration.start(FileBackend(config_filename))
+            configuration.start()
         except ConfigurationError, e:
             raise RuntimeError("failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
         account_manager.load_accounts()

@@ -5,11 +5,11 @@
 SIP SIMPLE Client configuration.
 """
 
-__all__ = ['config_filename']
+__all__ = ['config_directory']
 
 import os
 
 
-config_filename = os.path.expanduser('~/.sipclient/config')
+config_directory = os.path.expanduser('~/.sipclient')
 
 

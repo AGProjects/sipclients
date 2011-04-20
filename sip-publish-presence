@@ -26,16 +26,17 @@ from zope.interface import implements
 
 from sipsimple.core import Engine, FromHeader, Publication, PublicationError, RouteHeader, SIPCoreError, SIPURI
 from sipsimple.account import Account, AccountManager, BonjourAccount
+from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
-from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import BuilderError
 from sipsimple.payloads.presdm import Contact, Device, DeviceNote, DeviceTimestamp, Person, PersonNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
 from sipsimple.payloads.rpid import Activities, Mood, RPIDNote, TimeOffset
+from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
 
-from sipclient.configuration import config_filename
+from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
 from sipclient.configuration.settings import SIPSimpleSettingsExtension
 from sipclient.log import Logger
@@ -483,8 +484,9 @@ class PublicationApplication(object):
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
+        SIPApplication.storage = FileStorage(config_directory)
         try:
-            configuration.start(FileBackend(config_filename))
+            configuration.start()
         except ConfigurationError, e:
             raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
         account_manager.load_accounts()

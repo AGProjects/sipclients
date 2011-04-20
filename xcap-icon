@@ -19,12 +19,13 @@ from xcaplib.client import XCAPClient
 from xcaplib.error import HTTPError
 
 from sipsimple.account import Account, AccountManager, BonjourAccount
+from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
-from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.payloads.prescontent import PresenceContent, Data
+from sipsimple.storage import FileStorage
 
-from sipclient.configuration import config_filename
+from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
 from sipclient.configuration.settings import SIPSimpleSettingsExtension
 
@@ -127,8 +128,9 @@ def do_xcap_icon(operation, account_name, file):
     Account.register_extension(AccountExtension)
     BonjourAccount.register_extension(AccountExtension)
     SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
+    SIPApplication.storage = FileStorage(config_directory)
     try:
-        ConfigurationManager().start(FileBackend(config_filename))
+        ConfigurationManager().start()
     except ConfigurationError, e:
         raise RuntimeError("failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
     account_manager = AccountManager()

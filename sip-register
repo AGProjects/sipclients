@@ -18,15 +18,14 @@ from application import log
 from application.notification import NotificationCenter, NotificationData
 from application.python.queue import EventQueue
 
-from sipsimple.core import Engine
-
 from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError
-from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.settings import SIPSimpleSettings
+from sipsimple.core import Engine
+from sipsimple.storage import FileStorage
 
-from sipclient.configuration import config_filename
+from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
 from sipclient.configuration.settings import SIPSimpleSettingsExtension
 from sipclient.log import Logger
@@ -120,13 +119,11 @@ class RegistrationApplication(SIPApplication):
 
         log.level.current = log.level.WARNING # get rid of twisted messages
 
-        config_file = os.path.realpath(options.config_file or config_filename)
-        self.output.put("Using configuration file '%s'\n" % config_file)
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
         try:
-            SIPApplication.start(self, FileBackend(config_file))
+            SIPApplication.start(self, FileStorage(options.config_directory or config_directory))
         except ConfigurationError, e:
             self.output.put("Failed to load sipclient's configuration: %s\n" % str(e))
             self.output.put("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.\n")
@@ -325,7 +322,7 @@ if __name__ == "__main__":
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help
     parser.add_option('-a', '--account', type='string', dest='account', help='The name of the account to use. If not supplied, the default account will be used.', metavar='NAME')
-    parser.add_option('-c', '--config-file', type='string', dest='config_file', help='The path to a configuration file to use. This overrides the default location of the configuration file.', metavar='FILE')
+    parser.add_option('-c', '--config-directory', type='string', dest='config_directory', help='The configuration directory to use. This overrides the default location.')
     parser.add_option('-s', '--trace-sip', action='store_true', dest='trace_sip', default=False, help='Dump the raw contents of incoming and outgoing SIP messages (disabled by default).')
     parser.add_option('-j', '--trace-pjsip', action='store_true', dest='trace_pjsip', default=False, help='Print PJSIP logging output (disabled by default).')
     parser.add_option('-n', '--trace-notifications', action='store_true', dest='trace_notifications', default=False, help='Print all notifications (disabled by default).')

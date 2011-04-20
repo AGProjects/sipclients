@@ -13,13 +13,14 @@ from collections import deque
 from optparse import OptionParser
 
 from sipsimple.account import Account, BonjourAccount, AccountManager
+from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager, DefaultValue, Setting, SettingsGroupMeta
-from sipsimple.configuration.backend.file import FileBackend
 from sipsimple.configuration.datatypes import List, STUNServerAddress
 from sipsimple.configuration.settings import SIPSimpleSettings
+from sipsimple.storage import FileStorage
 from sipsimple.threading import ThreadManager
 
-from sipclient.configuration import config_filename
+from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
 from sipclient.configuration.settings import SIPSimpleSettingsExtension
 
@@ -143,11 +144,11 @@ class SettingsParser(object):
 
 
 class AccountConfigurator(object):
-    def __init__(self, config_file):
+    def __init__(self):
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         self.configuration_manager = ConfigurationManager()
-        self.configuration_manager.start(FileBackend(os.path.realpath(config_file or config_filename)))
+        self.configuration_manager.start()
         self.account_manager = AccountManager()
         self.account_manager.load_accounts()
 
@@ -280,10 +281,10 @@ class AccountConfigurator(object):
 
 
 class SIPSimpleConfigurator(object):
-    def __init__(self, config_file):
+    def __init__(self):
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
         self.configuration_manager = ConfigurationManager()
-        self.configuration_manager.start(FileBackend(os.path.realpath(config_file or config_filename)))
+        self.configuration_manager.start()
         SIPSimpleSettings()
 
     def show(self):
@@ -336,7 +337,7 @@ if __name__ == '__main__':
        %prog --account default user@domain"""
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help
-    parser.add_option('-c', '--config-file', type='string', dest='config_file', help='The path to a configuration file to use. This overrides the default location of the configuration file.', metavar='FILE')
+    parser.add_option('-c', '--config-directory', type='string', dest='config_directory', help='The configuration directory to use. This overrides the default location.')
     parser.add_option("-a", "--account", action="store_true", dest="account", help="Manage SIP accounts' settings")
     parser.add_option("-g", "--general", action="store_true", dest="general", help="Manage general SIP SIMPLE middleware settings")
     options, args = parser.parse_args()
@@ -351,14 +352,16 @@ if __name__ == '__main__':
         parser.print_usage()
         sys.exit(1)
 
+    SIPApplication.storage = FileStorage(options.config_directory or config_directory)
+    thread_manager = ThreadManager()
+    thread_manager.start()
+
     # execute the handlers
     try:
-        thread_manager = ThreadManager()
-        thread_manager.start()
         if options.account:
-            object = AccountConfigurator(options.config_file)
+            object = AccountConfigurator()
         else:
-            object = SIPSimpleConfigurator(options.config_file)
+            object = SIPSimpleConfigurator()
     except ConfigurationError, e:
         sys.stderr.write("Failed to load sipclient's configuration: %s\n" % str(e))
         sys.stderr.write("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.\n")
