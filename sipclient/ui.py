@@ -26,7 +26,7 @@ from threading import RLock, Thread
 
 from application.python.decorator import decorator, preserve_signature
 from application.python.queue import EventQueue
-from application.python.util import Singleton
+from application.python.types import Singleton
 from application.notification import NotificationCenter, NotificationData
 
 
