@@ -1,3 +1,10 @@
+sipclients (0.18.2) unstable; urgency=low
+
+  * Adapted to changes in python-application
+  * Reworked Debian packaging
+
+ -- Saul Ibarra <saul@ag-projects.com>  Tue, 07 Jun 2011 16:50:54 +0200
+
 sipclients (0.18.1) unstable; urgency=low
 
   * Added add/remove participant commands to sip-session
