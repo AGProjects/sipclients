@@ -18,10 +18,10 @@ from pprint import pformat
 from application import log
 from application.notification import IObserver, NotificationCenter
 from application.python.queue import EventQueue
+from application.system import makedirs
 from zope.interface import implements
 
 from sipsimple.configuration.settings import SIPSimpleSettings
-from sipsimple.util import makedirs
 
 
 class Logger(object):

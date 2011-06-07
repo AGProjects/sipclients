@@ -10,7 +10,7 @@ __all__ = ['ResourcePath', 'UserDataPath', 'SoundFile', 'AccountSoundFile']
 import os
 import sys
 
-from sipsimple.util import classproperty
+from application.python.descriptor import classproperty
 
 
 ## Path datatypes
