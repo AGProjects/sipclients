@@ -1912,6 +1912,19 @@ class SIPSessionApplication(SIPApplication):
         else:
             self.active_session.conference.remove_participant(uri)
 
+    def _CH_transfer(self, uri):
+        if self.active_session is None:
+            send_notice('There is no active session')
+            return
+        if re.match('^(sip:|sips:)', uri) is None:
+            uri = 'sip:%s' % uri
+        try:
+            uri = SIPURI.parse(uri)
+        except SIPCoreError:
+            send_notice('Invalid SIP URI')
+        else:
+            self.active_session.transfer(uri)
+
     # private methods
     #
 
