@@ -1,3 +1,9 @@
+sipclients (0.19.0) unstable; urgency=low
+
+  * Added blind transfer support to sip-session
+
+ -- Saul Ibarra <saul@ag-projects.com>  Fri, 16 Sep 2011 13:01:12 +0200
+
 sipclients (0.18.2) unstable; urgency=low
 
   * Adapted to changes in python-application
