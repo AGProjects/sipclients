@@ -1958,6 +1958,7 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /remove {chat|audio}: remove a stream from the current session')
         lines.append('  /add_participant {user@domain}: add the specified user to the conference')
         lines.append('  /remove_participant {user@domain}: remove the specified user from the conference')
+        lines.append('  /transfer {user@domain}: transfer (using blind transfer) callee to the specified destination')
         send_notice(lines, bold=False)
 
     def _update_prompt(self):
