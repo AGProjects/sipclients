@@ -614,7 +614,7 @@ class OutgoingTransferHandler(object):
 
         self.session = Session(self.account)
         notification_center.add_observer(self, sender=self.session)
-        self.session.connect(ToHeader(self.target), routes=notification.data.result, streams=[FileTransferStream(self.account, self.file_selector)])
+        self.session.connect(ToHeader(self.target), routes=notification.data.result, streams=[FileTransferStream(self.account, self.file_selector, 'sendonly')])
 
     def _NH_DNSLookupDidFail(self, notification):
         send_notice('File transfer to %s failed: DNS lookup error: %s' % (self.target, notification.data.error))
