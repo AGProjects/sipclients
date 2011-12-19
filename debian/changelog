@@ -1,3 +1,11 @@
+sipclients (0.20.0) unstable; urgency=low
+
+  * Fixed code to work with latest changes in FileTransferStream in
+    sipsimple
+  * Dropped support for Python 2.5
+
+ -- Saul Ibarra <saul@ag-projects.com>  Mon, 19 Dec 2011 15:27:01 +0100
+
 sipclients (0.19.0) unstable; urgency=low
 
   * Added blind transfer support to sip-session
