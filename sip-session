@@ -1114,6 +1114,11 @@ class SIPSessionApplication(SIPApplication):
         if len(contact_header_list) > 1:
             lines.append('Other registered contacts:')
             lines.extend('  %s (expires in %s seconds)' % (str(other_contact_header.uri), other_contact_header.expires) for other_contact_header in contact_header_list if other_contact_header.uri != notification.data.contact_header.uri)
+        account = notification.sender
+        if account.contact.public_gruu is not None:
+            lines.append('Public GRUU: %s' % account.contact.public_gruu)
+        if account.contact.temporary_gruu is not None:
+            lines.append('Temporary GRUU: %s' % account.contact.temporary_gruu)
         send_notice(lines)
 
         self.registration_succeeded = True
