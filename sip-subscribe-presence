@@ -8,6 +8,7 @@ import random
 import select
 import sys
 import termios
+import urllib
 
 from collections import deque
 from optparse import OptionParser
@@ -30,7 +31,7 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.payloads import ParserError
 from sipsimple.payloads import rpid # needed to register RPID extensions
-from sipsimple.payloads.presdm import Device, Person, PIDF, Service
+from sipsimple.payloads.pidf import Device, Person, Service, PIDF, PIDFDocument
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
 from sipsimple.util import Route
@@ -156,7 +157,7 @@ class SubscriptionApplication(object):
         # start the engine
         engine.start(
             auto_sound=False,
-            events={'presence': [PIDF.content_type]},
+            events={'presence': [PIDFDocument.content_type]},
             udp_port=settings.sip.udp_port if "udp" in settings.sip.transport_list else None,
             tcp_port=settings.sip.tcp_port if "tcp" in settings.sip.transport_list else None,
             tls_port=settings.sip.tls_port if "tls" in settings.sip.transport_list else None,
@@ -285,7 +286,7 @@ class SubscriptionApplication(object):
                 self.subscription.subscribe(timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.content_type == PIDF.content_type:
+        if notification.data.content_type == PIDFDocument.content_type:
             self.output.put('Received NOTIFY:')
             try:
                 pidf = PIDF.parse(notification.data.body)
@@ -502,7 +503,7 @@ class SubscriptionApplication(object):
             buf.append("    Status: %s" % service.status.basic)
         # display contact
         if service.contact is not None:
-            buf.append("    Contact%s: %s" % ((service.contact.priority is not None) and (' priority %s' % service.contact.priority) or '', service.contact))
+            buf.append("    Contact%s: %s" % ((service.contact.priority is not None) and (' priority %s' % service.contact.priority) or '', urllib.unquote(service.contact.value)))
         # display device ID
         if service.device_id is not None:
             buf.append("    Service offered by device id: %s" % service.device_id)
@@ -549,7 +550,7 @@ class SubscriptionApplication(object):
 
     def _display_pidf(self, pidf):
         buf = ["-"*16]
-        buf.append("Presence for %s:" % pidf.entity)
+        buf.append("Presence for %s:" % urllib.unquote(pidf.entity))
         persons = {}
         devices = {}
         services = {}
@@ -564,7 +565,7 @@ class SubscriptionApplication(object):
 
         # handle person information
         if len(persons) == 0:
-            if len(pidf.notes) > 0:
+            if list(pidf.notes):
                 buf.append("  Person information:")
                 for note in pidf.notes:
                     buf.append("    %s" % self._format_note(note))

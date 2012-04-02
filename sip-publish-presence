@@ -31,7 +31,7 @@ from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import BuilderError
-from sipsimple.payloads.presdm import Contact, Device, DeviceNote, DeviceTimestamp, Person, PersonNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
+from sipsimple.payloads.pidf import Contact, Device, DeviceNote, DeviceTimestamp, Person, PersonNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
 from sipsimple.payloads.rpid import Activities, Mood, RPIDNote, TimeOffset
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
