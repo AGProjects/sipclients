@@ -31,7 +31,7 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import ParserError
-from sipsimple.payloads.watcherinfo import WatcherInfo
+from sipsimple.payloads.watcherinfo import WatcherInfo, WatcherInfoDocument
 from sipsimple.payloads.policy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
 from sipsimple.payloads.presrules import AllDevices, AllPersons, AllServices, PresRules, ProvideAllAttributes, ProvideDevices, ProvidePersons, ProvideServices, SubHandling
 from sipsimple.storage import FileStorage
@@ -173,7 +173,7 @@ class WinfoApplication(object):
         # start the engine
         engine.start(
             auto_sound=False,
-            events={'presence.winfo': [WatcherInfo.content_type]},
+            events={'presence.winfo': [WatcherInfoDocument.content_type]},
             udp_port=settings.sip.udp_port if "udp" in settings.sip.transport_list else None,
             tcp_port=settings.sip.tcp_port if "tcp" in settings.sip.transport_list else None,
             tls_port=settings.sip.tls_port if "tls" in settings.sip.transport_list else None,
@@ -304,7 +304,7 @@ class WinfoApplication(object):
                 self.subscription.subscribe(timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.content_type == WatcherInfo.content_type:
+        if notification.data.content_type == WatcherInfoDocument.content_type:
             self._handle_winfo(notification.data.body)
 
     def _NH_DNSLookupDidSucceed(self, notification):
@@ -454,9 +454,9 @@ class WinfoApplication(object):
                     self.allow_rule = Rule('pres_whitelist', conditions=Conditions([self.allow_rule_identities]), actions=Actions([SubHandling('allow')]),
                                            transformations=Transformations([ProvideServices([AllServices()]), ProvidePersons([AllPersons()]),
                                            ProvideDevices([AllDevices()]), ProvideAllAttributes()]))
-                    self.prules.append(self.allow_rule)
+                    self.prules.add(self.allow_rule)
                 if str(watcher) not in self.allow_rule_identities:
-                    self.allow_rule_identities.append(IdentityOne(str(watcher)))
+                    self.allow_rule_identities.add(IdentityOne(str(watcher)))
                 try:
                     res = self.xcap_client.put('pres-rules', self.prules.toxml(pretty_print=True), etag=self.prules_etag)
                 except HTTPError, e:
@@ -479,9 +479,9 @@ class WinfoApplication(object):
                     self.block_rule_identities = Identity()
                     self.block_rule = Rule('pres_blacklist', conditions=Conditions([self.block_rule_identities]), actions=Actions([SubHandling('block')]),
                                            transformations=Transformations())
-                    self.prules.append(self.block_rule)
+                    self.prules.add(self.block_rule)
                 if str(watcher) not in self.block_rule_identities:
-                    self.block_rule_identities.append(IdentityOne(str(watcher)))
+                    self.block_rule_identities.add(IdentityOne(str(watcher)))
                 try:
                     res = self.xcap_client.put('pres-rules', self.prules.toxml(pretty_print=True), etag=self.prules_etag)
                 except HTTPError, e:
@@ -504,9 +504,9 @@ class WinfoApplication(object):
                     self.polite_block_rule_identities = Identity()
                     self.polite_block_rule = Rule('pres_polite_blacklist', conditions=Conditions([self.polite_block_rule_identities]), actions=Actions([SubHandling('polite-block')]),
                                                   transformations=Transformations())
-                    self.prules.append(self.polite_block_rule)
+                    self.prules.add(self.polite_block_rule)
                 if str(watcher) not in self.polite_block_rule_identities:
-                    self.polite_block_rule_identities.append(IdentityOne(str(watcher)))
+                    self.polite_block_rule_identities.add(IdentityOne(str(watcher)))
                 try:
                     res = self.xcap_client.put('pres-rules', self.prules.toxml(pretty_print=True), etag=self.prules_etag)
                 except HTTPError, e:
@@ -522,10 +522,11 @@ class WinfoApplication(object):
 
     def _handle_winfo(self, body):
         try:
-            result = self.winfo.update(body)
+            result = self.winfo.parse(body)
         except ParserError, e:
             self.output.put("Got illegal winfo document: %s\n%s" % (str(e), body))
         else:
+            self.winfo.update(result.wlists)
             sip_id = 'sip:%s' % self.account.id
             try:
                 wlist = self.winfo[sip_id]
@@ -547,9 +548,14 @@ class WinfoApplication(object):
                     buf.append("  %s" % watcher)
                 buf.append("----")
                 self.output.put('\n'.join(buf))
-            for watcher in result.get(sip_id, ()):
-                if (watcher.status == 'pending' or watcher.status == 'waiting') and watcher not in self.pending and self.xcap_client is not None:
-                    self.pending.append(watcher)
+            try:
+                watchers = result[sip_id]
+            except KeyError:
+                pass
+            else:
+                for watcher in watchers:
+                    if (watcher.status == 'pending' or watcher.status == 'waiting') and watcher not in self.pending and self.xcap_client is not None:
+                        self.pending.append(watcher)
             if len(self.pending) > 0:
                 self.output.put("%s watcher %s wants to subscribe to your presence information. Press (a) for allow, (d) for deny or (p) for polite blocking:" % (self.pending[0].status.capitalize(), self.pending[0]))
 
