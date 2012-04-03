@@ -12,6 +12,7 @@ import termios
 import traceback
 
 from collections import deque
+from datetime import datetime
 from optparse import OptionParser
 from threading import RLock, Thread
 from time import time
@@ -25,13 +26,13 @@ from twisted.internet.error import ReactorNotRunning
 from zope.interface import implements
 
 from sipsimple.core import Engine, FromHeader, Publication, PublicationError, RouteHeader, SIPCoreError, SIPURI
-from sipsimple.account import Account, AccountManager, BonjourAccount
+from sipsimple.account import Account, AccountManager, BonjourAccount, PublicGRUU
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import BuilderError
-from sipsimple.payloads.pidf import Contact, Device, DeviceNote, DeviceTimestamp, Person, PersonNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
+from sipsimple.payloads.pidf import Contact, Device, DMNote, DeviceTimestamp, Person, PIDFNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
 from sipsimple.payloads.rpid import Activities, Mood, RPIDNote, TimeOffset
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
@@ -108,8 +109,8 @@ class MoodMenu(Menu):
         else:
             if person.mood is None:
                 person.mood = Mood()
-            person.mood.append(values[m-1])
-            person.timestamp = PersonTimestamp()
+            person.mood.add(values[m-1])
+            person.timestamp = PersonTimestamp(datetime.now())
             self.interface.application.publish()
             self.interface.application.output.put('Mood added')
         self.interface.show_top_level()
@@ -143,7 +144,7 @@ class MoodMenu(Menu):
             self.interface.application.output.put('Invalid input')
         else:
             person.mood.remove(values[m-1])
-            person.timestamp = PersonTimestamp()
+            person.timestamp = PersonTimestamp(datetime.now())
             self.interface.application.publish()
             self.interface.application.output.put('Mood deleted')
         self.interface.show_top_level()
@@ -155,7 +156,7 @@ class MoodMenu(Menu):
             self.print_prompt()
             return
         person.mood = None
-        person.timestamp = PersonTimestamp()
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.application.output.put('Mood information cleared')
         self.interface.show_top_level()
@@ -174,7 +175,7 @@ class MoodMenu(Menu):
                 person.mood = Mood()
             person.mood.notes.add(RPIDNote(note, lang='en'))
             self.interface.application.output.put('Note set')
-        person.timestamp = PersonTimestamp()
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.show_top_level()
 
@@ -189,8 +190,8 @@ class MoodMenu(Menu):
             person.mood.clear()
         values = values[:3]
         for mood in values:
-            person.mood.append(mood)
-        person.timestamp = PersonTimestamp()
+            person.mood.add(mood)
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.application.output.put('You are now ' + ', '.join(values))
         self.interface.show_top_level()
@@ -244,8 +245,8 @@ class ActivitiesMenu(Menu):
                 person.activities = Activities()
             else:
                 person.activities.clear()
-            person.activities.append(values[a-1])
-            person.timestamp = PersonTimestamp()
+            person.activities.add(values[a0])
+            person.timestamp = PersonTimestamp(datetime.now())
             self.interface.application.publish()
             self.interface.application.output.put('Activity set')
         self.interface.show_top_level()
@@ -256,8 +257,8 @@ class ActivitiesMenu(Menu):
             self.interface.application.output.put('There is no current activity set')
             return
         person.activities.clear()
-        person.activities.append('unknown')
-        person.timestamp = PersonTimestamp()
+        person.activities.add('unknown')
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.application.output.put('Activity deleted')
         self.interface.show_top_level()
@@ -268,7 +269,7 @@ class ActivitiesMenu(Menu):
             self.interface.application.output.put('There is no current activity set')
             return
         person.activities = None
-        person.timestamp = PersonTimestamp()
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.application.output.put('Activities information cleared')
         self.interface.show_top_level()
@@ -285,10 +286,10 @@ class ActivitiesMenu(Menu):
         else:
             if person.activities is None:
                 person.activities = Activities()
-                person.activities.append('unknown')
+                person.activities.add('unknown')
             person.activities.notes.add(RPIDNote(note, lang='en'))
             self.interface.application.output.put('Note set')
-        person.timestamp = PersonTimestamp()
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.show_top_level()
 
@@ -301,8 +302,8 @@ class ActivitiesMenu(Menu):
             person.activities = Activities()
         else:
             person.activities.clear()
-        person.activities.append(activity)
-        person.timestamp = PersonTimestamp()
+        person.activities.add(activity)
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.interface.application.output.put('You are now %s' % activity)
         self.interface.show_top_level()
@@ -343,7 +344,7 @@ class TopLevelMenu(Menu):
             service.status.basic = 'closed'
         else:
             service.status.basic = 'open'
-        service.timestamp = ServiceTimestamp()
+        service.timestamp = ServiceTimestamp(datetime.now())
         self.interface.application.output.put("Your basic status is now '%s'" % service.status.basic)
         self.interface.application.publish()
         self.print_prompt()
@@ -358,9 +359,9 @@ class TopLevelMenu(Menu):
                 del person.notes['en']
             self.interface.application.output.put('Note removed')
         else:
-            person.notes.add(PersonNote(note, lang='en'))
+            person.notes.add(PIDFNote(note, lang='en'))
             self.interface.application.output.put('Note added')
-        person.timestamp = PersonTimestamp()
+        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.print_prompt()
 
@@ -540,21 +541,25 @@ class PublicationApplication(object):
 
         # initialize top level elements
         self.service = Service(''.join(chr(random.randint(97, 122)) for i in xrange(8)), status=Status(basic='open'))
-        self.service.contact = Contact("sip:%s" % self.account.id)
+        device_id = settings.instance_id
+        #contact = "sip:%s" % self.account.id
+        contact = "sip:%s;gr=%s" % (self.account.id, device_id)
+        self.service.contact = Contact(contact)
         self.service.contact.priority = 0
-        self.service.relationship = 'self'
-        self.service.timestamp = ServiceTimestamp()
-        self.pidf.append(self.service)
+        self.service.device_id = device_id
+        self.service.timestamp = ServiceTimestamp(datetime.now())
+        self.pidf.add(self.service)
 
         self.person = Person(''.join(chr(random.randint(97, 122)) for i in xrange(8)))
         self.person.time_offset = TimeOffset()
-        self.person.timestamp = PersonTimestamp()
-        self.pidf.append(self.person)
+        self.person.timestamp = PersonTimestamp(datetime.now())
+        self.pidf.add(self.person)
 
         self.device = Device(''.join(chr(random.randint(97, 122)) for i in xrange(8)))
-        self.device.notes.add(DeviceNote('Powered by %s' % engine.user_agent, lang='en'))
-        self.device.timestamp = DeviceTimestamp()
-        self.pidf.append(self.device)
+        self.device.device_id = device_id
+        self.device.notes.add(DMNote('Powered by %s' % engine.user_agent, lang='en'))
+        self.device.timestamp = DeviceTimestamp(datetime.now())
+        self.pidf.add(self.device)
 
         # start the interface thread
         self.interface.start()
