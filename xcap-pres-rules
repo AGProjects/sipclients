@@ -113,9 +113,9 @@ def allow_watcher(watcher):
                 allow_rule = Rule('pres_whitelist', conditions=Conditions([allow_rule_identities]), actions=Actions([SubHandling('allow')]),
                         transformations=Transformations([ProvideServices([AllServices()]), ProvidePersons([AllPersons()]), 
                             ProvideDevices([AllDevices()]), ProvideAllAttributes()]))
-                prules.append(allow_rule)
+                prules.add(allow_rule)
             if str(watcher) not in allow_rule_identities:
-                allow_rule_identities.append(IdentityOne(str(watcher)))
+                allow_rule_identities.add(IdentityOne(str(watcher)))
             try:
                 res = xcap_client.put('pres-rules', prules.toxml(pretty_print=True), etag=prules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
@@ -145,9 +145,9 @@ def block_watcher(watcher):
                 block_rule_identities = Identity()
                 block_rule = Rule('pres_blacklist', conditions=Conditions([block_rule_identities]), actions=Actions([SubHandling('block')]),
                         transformations=Transformations())
-                prules.append(block_rule)
+                prules.add(block_rule)
             if str(watcher) not in block_rule_identities:
-                block_rule_identities.append(IdentityOne(str(watcher)))
+                block_rule_identities.add(IdentityOne(str(watcher)))
             try:
                 res = xcap_client.put('pres-rules', prules.toxml(pretty_print=True), etag=prules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
@@ -177,9 +177,9 @@ def polite_block_watcher(watcher):
                 polite_block_rule_identities = Identity()
                 polite_block_rule = Rule('pres_polite_blacklist', conditions=Conditions([polite_block_rule_identities]), actions=Actions([SubHandling('polite-block')]),
                         transformations=Transformations())
-                prules.append(polite_block_rule)
+                prules.add(polite_block_rule)
             if str(watcher) not in polite_block_rule_identities:
-                polite_block_rule_identities.append(IdentityOne(str(watcher)))
+                polite_block_rule_identities.add(IdentityOne(str(watcher)))
             try:
                 res = xcap_client.put('pres-rules', prules.toxml(pretty_print=True), etag=prules_etag, headers={'Content-Type': 'application/auth-policy+xml'})
             except HTTPError, e:
@@ -206,18 +206,30 @@ def remove_watcher(watcher, allowed=True, blocked=True, pblocked=True):
             get_prules()
         if prules is not None:
             if allowed:
-                if allow_rule_identities is not None and str(watcher) in allow_rule_identities:
-                    allow_rule_identities.remove(str(watcher))
+                try:
+                    identity = (i for i in allow_rule_identities or [] if isinstance(i, IdentityOne) and i.id == watcher).next()
+                except StopIteration:
+                    pass
+                else:
+                    allow_rule_identities.remove(identity)
                     if len(allow_rule_identities) == 0:
                         prules.remove(allow_rule)
             if blocked:
-                if block_rule_identities is not None and str(watcher) in block_rule_identities:
-                    block_rule_identities.remove(str(watcher))
+                try:
+                    identity = (i for i in block_rule_identities or [] if isinstance(i, IdentityOne) and i.id == str(watcher)).next()
+                except StopIteration:
+                    pass
+                else:
+                    block_rule_identities.remove(identity)
                     if len(block_rule_identities) == 0:
                         prules.remove(block_rule)
             if pblocked:
-                if polite_block_rule_identities is not None and str(watcher) in polite_block_rule_identities:
-                    polite_block_rule_identities.remove(str(watcher))
+                try:
+                    identity = (i for i in polite_block_rule_identities or [] if isinstance(i, IdentityOne) and i.id == str(watcher)).next()
+                except StopIteration:
+                    pass
+                else:
+                    polite_block_rule_identities.remove(identity)
                     if len(polite_block_rule_identities) == 0:
                         prules.remove(polite_block_rule)
             try:
