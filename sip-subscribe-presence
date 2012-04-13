@@ -374,12 +374,6 @@ class SubscriptionApplication(object):
         text = "Note"
         if note.lang is not None:
             text += "(%s)" % note.lang
-        if note.since is not None or note.until is not None:
-            text += " valid"
-            if note.since is not None:
-                text += " from %s" % note.since
-            if note.until is not None:
-                text += " until %s" % note.until
         text += ": %s" % note
         return text
 
@@ -392,10 +386,10 @@ class SubscriptionApplication(object):
         if person.timestamp is not None:
             buf.append("    Timestamp: %s" % person.timestamp)
         # display notes
-        if len(person.notes) > 0:
+        if person.notes:
             for note in person.notes:
                 buf.append("    %s" % self._format_note(note))
-        elif len(pidf.notes) > 0:
+        elif pidf.notes:
             for note in pidf.notes:
                 buf.append("    %s" % self._format_note(note))
         # display activities
