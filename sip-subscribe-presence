@@ -498,14 +498,21 @@ class SubscriptionApplication(object):
         for note in service.notes:
             buf.append("    %s" % self._format_note(note))
         # display status
-        if service.status is not None and service.status.basic is not None:
-            buf.append("    Status: %s" % service.status.basic)
+        if service.status is not None:
+            if service.status.basic is not None:
+                buf.append("    Basic status: %s" % service.status.basic)
+            if service.status.extended is not None:
+                buf.append("    Extended status: %s" % service.status.extended)
         # display contact
         if service.contact is not None:
             buf.append("    Contact%s: %s" % ((service.contact.priority is not None) and (' priority %s' % service.contact.priority) or '', urllib.unquote(service.contact.value)))
         # display device ID
-        if service.device_id is not None:
-            buf.append("    Service offered by device id: %s" % service.device_id)
+        if service.device_id is not None or service.device_info is not None:
+            if service.device_info is not None:
+                description = " (%s)" % urllib.unquote(service.device_info.description).decode('utf-8') if service.device_info.description else ""
+                buf.append("    Service offered by device: %s%s" % (service.device_info.id, description))
+            else:
+                buf.append("    Service offered by device id: %s" % service.device_id)
         # display relationship
         if service.relationship is not None:
             buf.append("    Relationship: %s" % service.relationship.value)
