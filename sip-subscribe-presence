@@ -90,7 +90,7 @@ class SubscriptionApplication(object):
         self.account_name = account_name
         self.target = target
         self.input = InputThread(self)
-        self.output = EventQueue(lambda event: sys.stdout.write(event+'\n'))
+        self.output = EventQueue(self._write)
         self.logger = Logger(sip_to_stdout=trace_sip, pjsip_to_stdout=trace_pjsip, notifications_to_stdout=trace_notifications)
         self.success = False
         self.account = None
@@ -109,6 +109,11 @@ class SubscriptionApplication(object):
         notification_center.add_observer(self, sender=self.input)
 
         log.level.current = log.level.WARNING
+
+    def _write(self, message):
+        if isinstance(message, unicode):
+            message = message.encode(sys.getfilesystemencoding())
+        sys.stdout.write(message+'\n')
 
     def run(self):
         account_manager = AccountManager()
