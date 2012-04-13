@@ -26,7 +26,7 @@ from twisted.internet.error import ReactorNotRunning
 from zope.interface import implements
 
 from sipsimple.core import Engine, FromHeader, Publication, PublicationError, RouteHeader, SIPCoreError, SIPURI
-from sipsimple.account import Account, AccountManager, BonjourAccount, PublicGRUU
+from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
