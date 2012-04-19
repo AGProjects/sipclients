@@ -4,12 +4,14 @@
 
 from __future__ import with_statement
 
+import hashlib
 import os
 import random
 import select
 import sys
 import termios
 import traceback
+import uuid
 
 from collections import deque
 from datetime import datetime
@@ -32,8 +34,8 @@ from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import BuilderError
-from sipsimple.payloads.pidf import Contact, Device, DMNote, DeviceTimestamp, Person, PIDFNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
-from sipsimple.payloads.rpid import Activities, Mood, RPIDNote, TimeOffset
+from sipsimple.payloads.pidf import Contact, Device, DeviceInfo, DMNote, DeviceTimestamp, Person, PIDFNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
+from sipsimple.payloads.rpid import Activities, ActivityRegistry, Mood, RPIDNote, TimeOffset
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
 
@@ -219,7 +221,7 @@ class ActivitiesMenu(Menu):
     def _set_activity(self):
         person = self.interface.application.person
         buf = ["Possible activities:"]
-        values = list(Activities.values)
+        values = list(ActivityRegistry.names)
         values.sort()
         max_len = max(len(s) for s in values)+2
         format = " %%02d) %%-%ds" % max_len
@@ -236,7 +238,7 @@ class ActivitiesMenu(Menu):
         a = self.interface.getstring('Select activity to add (any non-number will return)')
         try:
             a = int(a)
-            if a not in xrange(len(values)):
+            if a-1 not in xrange(len(values)):
                 raise ValueError
         except ValueError:
             self.interface.application.output.put('Invalid input')
@@ -245,7 +247,7 @@ class ActivitiesMenu(Menu):
                 person.activities = Activities()
             else:
                 person.activities.clear()
-            person.activities.add(values[a0])
+            person.activities.add(values[a-1])
             person.timestamp = PersonTimestamp(datetime.now())
             self.interface.application.publish()
             self.interface.application.output.put('Activity set')
@@ -350,18 +352,18 @@ class TopLevelMenu(Menu):
         self.print_prompt()
 
     def _set_note(self):
-        person = self.interface.application.person
-        if len(person.notes) > 0:
-            self.interface.application.output.put('Current note: %s' % person.notes['en'])
+        service = self.interface.application.service
+        if service.notes:
+            a_note = iter(service.notes).next()
+            self.interface.application.output.put('Current note: %s' % a_note)
         note = self.interface.getstring('Set note (press return to delete)')
         if note == '':
-            if len(person.notes) > 0:
-                del person.notes['en']
+            if service.notes:
+                service.notes.clear()
             self.interface.application.output.put('Note removed')
         else:
-            person.notes.add(PIDFNote(note, lang='en'))
+            service.notes.add(PIDFNote(note, lang='en'))
             self.interface.application.output.put('Note added')
-        person.timestamp = PersonTimestamp(datetime.now())
         self.interface.application.publish()
         self.print_prompt()
 
@@ -540,17 +542,19 @@ class PublicationApplication(object):
         self.pidf = PIDF(entity=self.account.id) # entity will be determined when account is selected
 
         # initialize top level elements
-        self.service = Service(''.join(chr(random.randint(97, 122)) for i in xrange(8)), status=Status(basic='open'))
         device_id = settings.instance_id
-        #contact = "sip:%s" % self.account.id
+        self.service = Service("ID-"+str(uuid.UUID(hex=settings.instance_id)))
+        self.service.status = Status(basic='open')
+        self.service.status.extended = 'available'
         contact = "sip:%s;gr=%s" % (self.account.id, device_id)
         self.service.contact = Contact(contact)
         self.service.contact.priority = 0
         self.service.device_id = device_id
+        self.service.device_info = DeviceInfo(device_id)
         self.service.timestamp = ServiceTimestamp(datetime.now())
         self.pidf.add(self.service)
 
-        self.person = Person(''.join(chr(random.randint(97, 122)) for i in xrange(8)))
+        self.person = Person("ID-"+hashlib.md5(self.account.id).hexdigest())
         self.person.time_offset = TimeOffset()
         self.person.timestamp = PersonTimestamp(datetime.now())
         self.pidf.add(self.person)
@@ -588,13 +592,12 @@ class PublicationApplication(object):
     def stop(self):
         self.stopping = True
         if self.publication is not None:
-            try:
-                self.publication.end(timeout=1)
-                return
-            except PublicationError:
-                pass
-        engine = Engine()
-        engine.stop()
+            self.service.status.basic = 'closed'
+            self.service.status.extended = 'offline'
+            self.publish()
+        else:
+            engine = Engine()
+            engine.stop()
 
     def print_help(self):
         message  = 'Available control keys:\n'
@@ -621,6 +624,15 @@ class PublicationApplication(object):
             self.lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
             self.publishing = True
 
+    def unpublish(self):
+        try:
+            self.publication.end(timeout=1)
+            return
+        except PublicationError:
+            pass
+        engine = Engine()
+        engine.stop()
+
     def handle_notification(self, notification):
         handler = getattr(self, '_NH_%s' % notification.name, None)
         if handler is not None:
@@ -632,6 +644,9 @@ class PublicationApplication(object):
             self._publication_wait = 0.5
             self.success = True
             self.publishing = False
+            if self.stopping:
+                self.unpublish()
+                return
 
     def _NH_SIPPublicationDidFail(self, notification):
         with self.publication_lock:
@@ -641,6 +656,9 @@ class PublicationApplication(object):
                 self.publishing = False
                 self.stop()
             else:
+                if self.stopping:
+                    self.unpublish()
+                    return
                 if not self._publication_routes or time() > self._publication_timeout:
                     self._publication_wait = min(self._publication_wait*2, 30)
                     timeout = random.uniform(self._publication_wait, 2*self._publication_wait)
