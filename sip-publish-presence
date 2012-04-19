@@ -35,7 +35,7 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import BuilderError
 from sipsimple.payloads.pidf import Contact, Device, DeviceInfo, DMNote, DeviceTimestamp, Person, PIDFNote, PersonTimestamp, PIDF, Service, ServiceTimestamp, Status
-from sipsimple.payloads.rpid import Activities, ActivityRegistry, Mood, RPIDNote, TimeOffset
+from sipsimple.payloads.rpid import Activities, ActivityRegistry, Mood, MoodRegistry, RPIDNote, TimeOffset
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
 
@@ -87,7 +87,7 @@ class MoodMenu(Menu):
     def _add_mood(self):
         person = self.interface.application.person
         buf = ['Possible moods:']
-        values = list(Mood.values)
+        values = list(MoodRegistry.names)
         values.sort()
         max_len = max(len(s) for s in values)+2
         format = ' %%02d) %%-%ds' % max_len
@@ -100,6 +100,7 @@ class MoodMenu(Menu):
             if i % num_line == 0:
                 buf.append(text)
                 text = ''
+        buf.append(text)
         self.interface.application.output.put('\n'.join(buf)+'\n')
         m = self.interface.getstring('Select mood to add (any non-number will return)')
         try:
@@ -165,12 +166,12 @@ class MoodMenu(Menu):
 
     def _set_note(self):
         person = self.interface.application.person
-        if person.mood is not None and len(person.mood.notes) > 0:
-            self.interface.application.output.put('Current note: %s' % person.mood.notes['en'])
+        if person.mood is not None and person.mood.notes:
+            a_note = iter(person.mood.notes).next()
+            self.interface.application.output.put('Current note: %s' % a_note)
         note = self.interface.getstring('Set note (press return to delete)')
         if note == '':
-            if person.mood is not None and len(person.mood.notes) > 0:
-                del person.mood.notes['en']
+            person.mood.notes.clear()
             self.interface.application.output.put('Note removed')
         else:
             if person.mood is None:
@@ -183,7 +184,7 @@ class MoodMenu(Menu):
 
     def _set_random(self):
         person = self.interface.application.person
-        values = list(value for value in Mood.values if value != 'unknown')
+        values = list(value for value in MoodRegistry.names if value != 'unknown')
         random.shuffle(values)
 
         if person.mood is None:
