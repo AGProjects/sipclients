@@ -320,6 +320,63 @@ class ActivitiesMenu(Menu):
                     'q': KeyBinding(description='quit program', handler=Menu._exit_program)}
 
 
+# Extended status manipulation menu
+class ExtendedStatusMenu(Menu):
+    def _show_extended_status(self):
+        service = self.interface.application.service
+        buf = ["Extended status:"]
+        if service.status.extended is not None:
+            buf.append("  %s" % str(service.status.extended))
+        self.interface.application.output.put('\n'.join(buf))
+
+    def _set_extended_status(self):
+        service = self.interface.application.service
+        buf = ["Possible statuses:"]
+        values = ['available', 'away', 'extended-away', 'busy', 'offline']
+        max_len = max(len(s) for s in values)+2
+        format = " %%02d) %%-%ds" % max_len
+        num_line = 80/(max_len+5)
+        i = 0
+        text = ''
+        for val in values:
+            text += format % (i+1, val)
+            i += 1
+            if i % num_line == 0:
+                buf.append(text)
+                text = ''
+        buf.append(text)
+        self.interface.application.output.put('\n'.join(buf)+'\n')
+        a = self.interface.getstring('Select status (any non-number will return)')
+        try:
+            a = int(a)
+            if a-1 not in xrange(len(values)):
+                raise ValueError
+        except ValueError:
+            self.interface.application.output.put('Invalid input')
+        else:
+            status = values[a-1]
+            if status == 'offline':
+                service.status.basic = 'closed'
+            else:
+                service.status.basic = 'open'
+            service.status.extended = status
+            self.interface.application.publish()
+            self.interface.application.output.put('Extended atatus set')
+        self.interface.show_top_level()
+
+    def _del_extended_status(self):
+        self.interface.application.service.status.extended = None
+        self.interface.application.publish()
+        self.interface.application.output.put('Activity deleted')
+        self.interface.show_top_level()
+
+    key_bindings = {'s': KeyBinding(description='show current extended status', handler=_show_extended_status),
+                    'e': KeyBinding(description='set extended status', handler=_set_extended_status),
+                    'd': KeyBinding(description='delete extended status', handler=_del_extended_status),
+                    'x': KeyBinding(description='exit to upper level menu', handler=Menu._exit),
+                    'q': KeyBinding(description='quit program', handler=Menu._exit_program)}
+
+
 class TopLevelMenu(Menu):
     def _show_pidf(self):
         try:
@@ -351,6 +408,10 @@ class TopLevelMenu(Menu):
         self.interface.application.publish()
         self.print_prompt()
 
+    def _set_extended_status(self):
+        extended_status_menu = ExtendedStatusMenu(self.interface)
+        self.interface.add_menu(extended_status_menu)
+
     def _set_note(self):
         service = self.interface.application.service
         if service.notes:
@@ -371,6 +432,7 @@ class TopLevelMenu(Menu):
                     'm': KeyBinding(description='set mood information', handler=_set_mood_info),
                     'a': KeyBinding(description='set activities information', handler=_set_activity_info),
                     'b': KeyBinding(description='toggle basic status', handler=_toggle_basic),
+                    'e': KeyBinding(description='set extended status', handler=_set_extended_status),
                     'n': KeyBinding(description='set note', handler=_set_note),
                     'q': KeyBinding(description='quit program', handler=Menu._exit_program)}
 
