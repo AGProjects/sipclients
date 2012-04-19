@@ -31,9 +31,9 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import ParserError
-from sipsimple.payloads.watcherinfo import WatcherInfo, WatcherInfoDocument
-from sipsimple.payloads.policy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
+from sipsimple.payloads.commonpolicy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
 from sipsimple.payloads.presrules import AllDevices, AllPersons, AllServices, PresRules, ProvideAllAttributes, ProvideDevices, ProvidePersons, ProvideServices, SubHandling
+from sipsimple.payloads.watcherinfo import WatcherInfo, WatcherInfoDocument
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
 from sipsimple.util import Route

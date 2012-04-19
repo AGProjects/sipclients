@@ -26,7 +26,7 @@ from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.payloads import ParserError
-from sipsimple.payloads.policy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
+from sipsimple.payloads.commonpolicy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
 from sipsimple.payloads.presrules import AllDevices, AllPersons, AllServices, PresRules, ProvideAllAttributes, ProvideDevices, ProvidePersons, ProvideServices, SubHandling
 from sipsimple.storage import FileStorage
 
