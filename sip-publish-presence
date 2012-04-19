@@ -279,12 +279,12 @@ class ActivitiesMenu(Menu):
 
     def _set_note(self):
         person = self.interface.application.person
-        if person.activities is not None and len(person.activities.notes) > 0:
-            self.interface.application.output.put('Current note: %s' % person.activities.notes['en'])
+        if person.activities is not None and person.activities.notes:
+            a_note = iter(person.activities.notes).next()
+            self.interface.application.output.put('Current note: %s' % a_note)
         note = self.interface.getstring('Set note (press return to delete)')
         if note == '':
-            if person.activities is not None and len(person.activities.notes) > 0:
-                del person.activities.notes['en']
+            person.activities.notes.clear()
             self.interface.application.output.put('Note deleted')
         else:
             if person.activities is None:
