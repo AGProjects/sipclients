@@ -298,7 +298,7 @@ class ActivitiesMenu(Menu):
 
     def _set_random(self):
         person = self.interface.application.person
-        values = list(value for value in Activities.values if value != 'unknown')
+        values = list(value for value in ActivityRegistry.names if value != 'unknown')
         activity = random.choice(values)
 
         if person.activities is None:
