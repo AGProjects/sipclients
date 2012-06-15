@@ -1930,6 +1930,17 @@ class SIPSessionApplication(SIPApplication):
         else:
             self.active_session.transfer(uri)
 
+    def _CH_nickname(self, nickname):
+        if self.active_session is not None:
+            try:
+                chat_stream = (stream for stream in self.active_session.streams if stream.type=='chat').next()
+            except StopIteration:
+                return
+            try:
+                chat_stream.set_local_nickname(nickname)
+            except Exception, e:
+                send_notice('Error setting nickname: %s' % e)
+
     # private methods
     #
 
@@ -1964,6 +1975,7 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /add_participant {user@domain}: add the specified user to the conference')
         lines.append('  /remove_participant {user@domain}: remove the specified user from the conference')
         lines.append('  /transfer {user@domain}: transfer (using blind transfer) callee to the specified destination')
+        lines.append('  /nickname nick: set the user nickname whithin a conference')
         send_notice(lines, bold=False)
 
     def _update_prompt(self):
