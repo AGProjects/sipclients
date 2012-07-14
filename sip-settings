@@ -150,7 +150,7 @@ class AccountConfigurator(object):
         self.configuration_manager = ConfigurationManager()
         self.configuration_manager.start()
         self.account_manager = AccountManager()
-        self.account_manager.load_accounts()
+        self.account_manager.load()
 
     def list(self):
         print 'Accounts:'
