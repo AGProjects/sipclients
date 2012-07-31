@@ -118,10 +118,10 @@ class SubscriptionApplication(object):
         account_manager = AccountManager()
         configuration = ConfigurationManager()
         engine = Engine()
-        
+
         # start output thread
         self.output.start()
-    
+
         # startup configuration
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
@@ -204,11 +204,11 @@ class SubscriptionApplication(object):
             reactor.run()
         finally:
             self.input.stop()
-        
+
         # stop the output
         self.output.stop()
         self.output.join()
-        
+
         self.logger.stop()
 
         return 0 if self.success else 1
@@ -229,7 +229,7 @@ class SubscriptionApplication(object):
         message += '  Ctrl-d: quit the program\n'
         message += '  ?: display this help message\n'
         self.output.put('\n'+message)
-        
+
     def handle_notification(self, notification):
         handler = getattr(self, '_NH_%s' % notification.name, None)
         if handler is not None:
@@ -357,10 +357,10 @@ class SubscriptionApplication(object):
             reactor.stop()
         except ReactorNotRunning:
             pass
-    
+
     def _subscribe(self):
         settings = SIPSimpleSettings()
-        
+
         self._subscription_timeout = time()+30
 
         lookup = DNSLookup()

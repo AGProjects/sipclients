@@ -70,7 +70,7 @@ def display_object(obj, name):
         print linebuf
 
     print
-    
+
     [display_object(getattr(obj, child), child) for child in dir(type(obj)) if isinstance(getattr(type(obj), child, None), SettingsGroupMeta)]
 
 class SettingsParser(object):
@@ -231,13 +231,13 @@ class AccountConfigurator(object):
             if not accounts:
                 print 'No accounts which match %s' % sip_address
                 return
-        
+
         try:
             settings = dict(arg.split('=', 1) for arg in args)
         except ValueError:
             print 'Illegal arguments: %s' % ' '.join(args)
             return
-        
+
         for account in accounts:
             for attrname, value in settings.iteritems():
                 object = account
@@ -259,7 +259,7 @@ class AccountConfigurator(object):
                         print 'Unknown setting: %s' % attrname
                     except ValueError, e:
                         print '%s: %s' % (attrname, str(e))
-            
+
             account.save()
         print 'Account%s updated' % ('s' if len(accounts) > 1 else '')
 
@@ -298,7 +298,7 @@ class SIPSimpleConfigurator(object):
         except ValueError:
             print 'Illegal arguments: %s' % ' '.join(args)
             return
-        
+
         for attrname, value in settings.iteritems():
             object = sipsimple_settings
             name = attrname
@@ -319,7 +319,7 @@ class SIPSimpleConfigurator(object):
                     print 'Unknown setting: %s' % attrname
                 except ValueError, e:
                     print '%s: %s' % (attrname, str(e))
-        
+
         sipsimple_settings.save()
         print 'SIP SIMPLE general settings updated'
 
