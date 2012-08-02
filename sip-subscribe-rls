@@ -25,11 +25,10 @@ from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
-from sipsimple.core import ContactHeader, Engine, FromHeader, Header, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
+from sipsimple.core import ContactHeader, Engine, FromHeader, Header, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader, Route
 from sipsimple.lookup import DNSLookup
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
-from sipsimple.util import Route
 
 from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
@@ -122,7 +121,7 @@ class SubscriptionApplication(object):
             configuration.start()
         except ConfigurationError, e:
             raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
-        account_manager.load_accounts()
+        account_manager.load()
         if self.account_name is None:
             self.account = account_manager.default_account
         else:
@@ -270,7 +269,7 @@ class SubscriptionApplication(object):
                 reactor.callFromThread(reactor.callLater, timeout, self._subscribe)
             else:
                 route = self._subscription_routes.popleft()
-                route_header = RouteHeader(route.get_uri())
+                route_header = RouteHeader(route.uri)
                 self.subscription = Subscription(self.target.uri,
                                                  FromHeader(self.account.uri, self.account.display_name),
                                                  self.target,
@@ -291,7 +290,7 @@ class SubscriptionApplication(object):
         # create subscription and register to get notifications from it
         self._subscription_routes = deque(notification.data.result)
         route = self._subscription_routes.popleft()
-        route_header = RouteHeader(route.get_uri())
+        route_header = RouteHeader(route.uri)
         self.subscription = Subscription(self.target.uri,
                                          FromHeader(self.account.uri, self.account.display_name),
                                          self.target,
