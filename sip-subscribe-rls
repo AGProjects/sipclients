@@ -282,8 +282,8 @@ class SubscriptionApplication(object):
                 self.subscription.subscribe(extra_headers=[Header('Supported', 'eventlist')], timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.headers.get("Content-Type", (None, None))[0] in ('multipart/related', 'application/rlmi+xml', 'application/pidf+xml'):
-            self.output.put('Received NOTIFY:\n'+notification.data.body)
+        if notification.data.body:
+            self.output.put('Received NOTIFY:\n' + notification.data.body)
             self.print_help()
 
     def _NH_DNSLookupDidSucceed(self, notification):

@@ -282,7 +282,6 @@ class SubscriptionApplication(object):
                 self.subscription.subscribe(extra_headers=[Header('Supported', 'eventlist')], timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        #if notification.data.headers.get("Content-Type", None)[0] in ('application/simple-message-summary'):
         if notification.data.body:
             ms = MessageSummary.parse(notification.data.body)
             self.output.put('\nReceived NOTIFY:\n' + ms.to_string())
