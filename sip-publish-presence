@@ -555,7 +555,7 @@ class PublicationApplication(object):
             configuration.start()
         except ConfigurationError, e:
             raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
-        account_manager.load_accounts()
+        account_manager.load()
         if self.account_name is None:
             self.account = account_manager.default_account
         else:
@@ -803,7 +803,7 @@ class PublicationApplication(object):
 
     def _do_publish(self, route):
         try:
-            route_header = RouteHeader(route.get_uri())
+            route_header = RouteHeader(route.uri)
             self.publication.publish(self.pidf.toxml(), route_header, timeout=5)
         except BuilderError, e:
             self.output.put("PIDF as currently defined is invalid: %s" % str(e))
