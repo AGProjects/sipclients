@@ -134,7 +134,7 @@ def do_xcap_icon(operation, account_name, file):
     except ConfigurationError, e:
         raise RuntimeError("failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
     account_manager = AccountManager()
-    account_manager.load_accounts()
+    account_manager.load()
 
     if account_name is None:
         account = account_manager.default_account
@@ -156,7 +156,7 @@ def do_xcap_icon(operation, account_name, file):
     elif account.xcap.xcap_root is None:
         raise RuntimeError("XCAP root is not defined for account %s" % account.id)
 
-    xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.auth.password, auth=None)
+    xcap_client = XCAPClient(account.xcap.xcap_root, account.id, password=account.auth.password)
     if operation == "GET":
         _do_icon_get(file)
     elif operation == "PUT":
