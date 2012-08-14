@@ -170,7 +170,7 @@ class SubscriptionApplication(object):
         )
 
         if self.target is None:
-            self.target = ToHeader(SIPURI(user='%s-buddies' % self.account.id.username, host=self.account.id.domain))
+            self.target = ToHeader(SIPURI(user='%s+presence' % self.account.id.username, host=self.account.id.domain))
         else:
             if '@' not in self.target:
                 self.target = '%s@%s' % (self.target, self.account.id.domain)
