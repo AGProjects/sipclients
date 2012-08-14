@@ -11,7 +11,7 @@ import termios
 from collections import deque
 from optparse import OptionParser
 from threading import Thread
-from time import sleep, time
+from time import time
 
 from application import log
 from application.notification import IObserver, NotificationCenter, NotificationData
@@ -19,24 +19,18 @@ from application.python.queue import EventQueue
 from eventlet.twistedutil import join_reactor
 from twisted.internet import reactor
 from twisted.internet.error import ReactorNotRunning
-from urllib2 import URLError
-from xcaplib.client import XCAPClient
-from xcaplib.error import HTTPError
 from zope.interface import implements
 
 from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
-from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
+from sipsimple.core import ContactHeader, Engine, FromHeader, Route, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import ParserError
-from sipsimple.payloads.commonpolicy import Actions, Conditions, Identity, IdentityOne, Rule, Transformations
-from sipsimple.payloads.presrules import AllDevices, AllPersons, AllServices, PresRules, ProvideAllAttributes, ProvideDevices, ProvidePersons, ProvideServices, SubHandling
-from sipsimple.payloads.watcherinfo import WatcherInfo, WatcherInfoDocument
+from sipsimple.payloads.watcherinfo import WatcherInfoDocument
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
-from sipsimple.util import Route
 
 from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
@@ -95,17 +89,6 @@ class WinfoApplication(object):
         self.logger = Logger(sip_to_stdout=trace_sip, pjsip_to_stdout=trace_pjsip, notifications_to_stdout=trace_notifications)
         self.success = False
         self.account = None
-        self.winfo = WatcherInfo()
-        self.xcap_client = None
-        self.pending = deque()
-        self.prules = None
-        self.prules_etag = None
-        self.allow_rule = None
-        self.allow_rule_identities = None
-        self.block_rule = None
-        self.block_rule_identities = None
-        self.polite_block_rule = None
-        self.polite_block_rule_identities = None
         self.subscription = None
         self.stopping = False
 
@@ -139,7 +122,7 @@ class WinfoApplication(object):
             configuration.start()
         except ConfigurationError, e:
             raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
-        account_manager.load_accounts()
+        account_manager.load()
         if self.account_name is None:
             self.account = account_manager.default_account
         else:
@@ -190,23 +173,7 @@ class WinfoApplication(object):
             trace_sip=settings.logs.trace_sip or self.logger.sip_to_stdout,
             log_level=settings.logs.pjsip_level if (settings.logs.trace_pjsip or self.logger.pjsip_to_stdout) else 0
         )
-        
-        self.xcap_client = XCAPClient(self.account.xcap.xcap_root, self.account.id, password=self.account.auth.password, auth=None)
-        self._get_prules()
-        self.output.put('Allowed list:')
-        if self.allow_rule_identities is not None:
-            for identity in self.allow_rule_identities:
-                self.output.put('\t%s' % identity)
-        self.output.put('Blocked list:')
-        if self.block_rule_identities is not None:
-            for identity in self.block_rule_identities:
-                self.output.put('\t%s' % identity)
-        self.output.put('Polite-blocked list:')
-        if self.polite_block_rule_identities is not None:
-            for identity in self.polite_block_rule_identities:
-                self.output.put('\t%s' % identity)
 
-        self.print_help()
         self.output.put('Subscribing to the presence.winfo event')
 
         # start the input thread
@@ -291,7 +258,7 @@ class WinfoApplication(object):
                 reactor.callFromThread(reactor.callLater, timeout, self._subscribe)
             else:
                 route = self._subscription_routes.popleft()
-                route_header = RouteHeader(route.get_uri())
+                route_header = RouteHeader(route.uri)
                 self.subscription = Subscription(self.account.uri,
                                                  FromHeader(self.account.uri, self.account.display_name),
                                                  ToHeader(self.account.uri, self.account.display_name),
@@ -311,7 +278,7 @@ class WinfoApplication(object):
         # create subscription and register to get notifications from it
         self._subscription_routes = deque(notification.data.result)
         route = self._subscription_routes.popleft()
-        route_header = RouteHeader(route.get_uri())
+        route_header = RouteHeader(route.uri)
         self.subscription = Subscription(self.account.uri,
                                          FromHeader(self.account.uri, self.account.display_name),
                                          ToHeader(self.account.uri, self.account.display_name),
@@ -346,18 +313,6 @@ class WinfoApplication(object):
             self.output.put('Notification tracing to console is now %s.' % ('activated' if self.logger.notifications_to_stdout else 'deactivated'))
         elif key == '?':
             self.print_help()
-        elif len(self.pending) > 0:
-            if key == 'a':
-                watcher = self.pending.popleft()
-                self._allow_watcher(watcher)
-            elif key == 'd':
-                watcher = self.pending.popleft()
-                self._block_watcher(watcher)
-            elif key == 'p':
-                watcher = self.pending.popleft()
-                self._polite_block_watcher(watcher)
-            if len(self.pending) > 0:
-                self.output.put("%s watcher %s wants to subscribe to your presence information. Press (a) for allow, (d) for deny or (p) for polite blocking:" % (self.pending[0].status.capitalize(), self.pending[0]))
 
     @run_in_twisted_thread
     def _NH_SIPEngineDidEnd(self, notification):
@@ -391,147 +346,16 @@ class WinfoApplication(object):
             uri = SIPURI(host=self.account.id.domain)
         lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
 
-    def _get_prules(self):
-        self.prules = None
-        self.prules_etag = None
-        self.allow_rule = None
-        self.allow_rule_identities = None
-        self.block_rule = None
-        self.block_rule_identities = None
-        self.polite_block_rule = None
-        self.polite_block_rule_identities = None
-        try:
-            doc = self.xcap_client.get('pres-rules')
-        except URLError, e:
-            self.output.put("Cannot obtain 'pres-rules' document: %s" % str(e))
-        except HTTPError, e:
-            if e.response.status != 404:
-                self.output.put("Cannot obtain 'pres-rules' document: %s %s" % (e.response.status, e.response.reason))
-            else:
-                self.prules = PresRules()
-        else:
-            try:
-                self.prules = PresRules.parse(doc)
-            except ParserError, e:
-                self.output.put("Invalid 'pres-rules' document: %s" % str(e))
-            else:
-                self.prules_etag = doc.etag
-                # find each rule type
-                for rule in self.prules:
-                    if rule.actions is not None:
-                        for action in rule.actions:
-                            if isinstance(action, SubHandling):
-                                if action == 'allow':
-                                    if rule.conditions is not None:
-                                        for condition in rule.conditions:
-                                            if isinstance(condition, Identity):
-                                                self.allow_rule = rule
-                                                self.allow_rule_identities = condition
-                                                break
-                                elif action == 'block':
-                                    if rule.conditions is not None:
-                                        for condition in rule.conditions:
-                                            if isinstance(condition, Identity):
-                                                self.block_rule = rule
-                                                self.block_rule_identities = condition
-                                                break
-                                elif action == 'polite-block':
-                                    if rule.conditions is not None:
-                                        for condition in rule.conditions:
-                                            if isinstance(condition, Identity):
-                                                self.polite_block_rule = rule
-                                                self.polite_block_rule_identities = condition
-                                                break
-                                break
-
-    def _allow_watcher(self, watcher):
-        for i in xrange(3):
-            if self.prules is None:
-                self._get_prules()
-            if self.prules is not None:
-                if self.allow_rule is None:
-                    self.allow_rule_identities = Identity()
-                    self.allow_rule = Rule('pres_whitelist', conditions=Conditions([self.allow_rule_identities]), actions=Actions([SubHandling('allow')]),
-                                           transformations=Transformations([ProvideServices([AllServices()]), ProvidePersons([AllPersons()]),
-                                           ProvideDevices([AllDevices()]), ProvideAllAttributes()]))
-                    self.prules.add(self.allow_rule)
-                if str(watcher) not in self.allow_rule_identities:
-                    self.allow_rule_identities.add(IdentityOne(str(watcher)))
-                try:
-                    res = self.xcap_client.put('pres-rules', self.prules.toxml(pretty_print=True), etag=self.prules_etag)
-                except HTTPError, e:
-                    self.output.put("Cannot PUT 'pres-rules' document: %s" % str(e))
-                    self.prules = None
-                else:
-                    self.prules_etag = res.etag
-                    self.output.put("Watcher %s is now allowed" % watcher)
-                    break
-            sleep(0.1)
-        else:
-            self.output.put("Could not allow watcher %s" % watcher)
-
-    def _block_watcher(self, watcher):
-        for i in xrange(3):
-            if self.prules is None:
-                self._get_prules()
-            if self.prules is not None:
-                if self.block_rule is None:
-                    self.block_rule_identities = Identity()
-                    self.block_rule = Rule('pres_blacklist', conditions=Conditions([self.block_rule_identities]), actions=Actions([SubHandling('block')]),
-                                           transformations=Transformations())
-                    self.prules.add(self.block_rule)
-                if str(watcher) not in self.block_rule_identities:
-                    self.block_rule_identities.add(IdentityOne(str(watcher)))
-                try:
-                    res = self.xcap_client.put('pres-rules', self.prules.toxml(pretty_print=True), etag=self.prules_etag)
-                except HTTPError, e:
-                    self.output.put("Cannot PUT 'pres-rules' document: %s" % str(e))
-                    self.prules = None
-                else:
-                    self.prules_etag = res.etag
-                    self.output.put("Watcher %s is now denied" % watcher)
-                    break
-            sleep(0.1)
-        else:
-            self.output.put("Could not deny watcher %s" % watcher)
-
-    def _polite_block_watcher(self, watcher):
-        for i in xrange(3):
-            if self.prules is None:
-                self._get_prules()
-            if self.prules is not None:
-                if self.polite_block_rule is None:
-                    self.polite_block_rule_identities = Identity()
-                    self.polite_block_rule = Rule('pres_polite_blacklist', conditions=Conditions([self.polite_block_rule_identities]), actions=Actions([SubHandling('polite-block')]),
-                                                  transformations=Transformations())
-                    self.prules.add(self.polite_block_rule)
-                if str(watcher) not in self.polite_block_rule_identities:
-                    self.polite_block_rule_identities.add(IdentityOne(str(watcher)))
-                try:
-                    res = self.xcap_client.put('pres-rules', self.prules.toxml(pretty_print=True), etag=self.prules_etag)
-                except HTTPError, e:
-                    self.output.put("Cannot PUT 'pres-rules' document: %s" % str(e))
-                    self.prules = None
-                else:
-                    self.prules_etag = res.etag
-                    self.output.put("Watcher %s is now politely blocked" % watcher)
-                    break
-            sleep(0.1)
-        else:
-            self.output.put("Could not politely block authorization of watcher %s" % watcher)
-
     def _handle_winfo(self, body):
         try:
-            result = self.winfo.parse(body)
+            watcher_info = WatcherInfoDocument.parse(body)
         except ParserError, e:
             self.output.put("Got illegal winfo document: %s\n%s" % (str(e), body))
         else:
-            self.winfo.update(result.wlists)
-            sip_id = 'sip:%s' % self.account.id
             try:
-                wlist = self.winfo[sip_id]
+                wlist = watcher_info['sip:' + self.account.id]
             except KeyError:
-                self.output.put("Expected an entry for account %s in the winfo document" % sip_id)
+                self.output.put("Expected an entry for account %s in the winfo document" % self.account.id)
             else:
                 buf = ["Received NOTIFY:", "----"]
                 buf.append("Active watchers:")
@@ -548,20 +372,10 @@ class WinfoApplication(object):
                     buf.append("  %s" % watcher)
                 buf.append("----")
                 self.output.put('\n'.join(buf))
-            try:
-                watchers = result[sip_id]
-            except KeyError:
-                pass
-            else:
-                for watcher in watchers:
-                    if (watcher.status == 'pending' or watcher.status == 'waiting') and watcher not in self.pending and self.xcap_client is not None:
-                        self.pending.append(watcher)
-            if len(self.pending) > 0:
-                self.output.put("%s watcher %s wants to subscribe to your presence information. Press (a) for allow, (d) for deny or (p) for polite blocking:" % (self.pending[0].status.capitalize(), self.pending[0]))
 
 
 if __name__ == "__main__":
-    description = "This script displays the content of the presence rules XCAP document, subscribes to the presence.winfo event package and prompts the user to update the presence rules document when a new watcher is in 'pending'/'waiting' state. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
+    description = "This script subscribes to the presence.winfo event package and shows the received watcher info document's content. The program will un-SUBSCRIBE and quit when CTRL+D is pressed."
     usage = "%prog [options] [target-user@target-domain.com]"
     parser = OptionParser(usage=usage, description=description)
     parser.print_usage = parser.print_help
