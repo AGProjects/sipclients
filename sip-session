@@ -325,7 +325,6 @@ class IncomingCallInitializer(object):
         session = notification.sender
         notification_center.remove_observer(self, sender=session)
         IncomingCallInitializer.sessions -= 1
-        application = SIPSessionApplication()
 
         ui = UI()
         ui.status = 'Connected'
@@ -1458,7 +1457,6 @@ class SIPSessionApplication(SIPApplication):
             send_notice(" ")
 
     def _NH_AudioStreamICENegotiationDidFail(self, notification):
-        stream = notification.sender
         send_notice("\n")
         send_notice("ICE negotiation failed: %s" % notification.data.reason)
 
