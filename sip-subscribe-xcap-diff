@@ -25,14 +25,13 @@ from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError, ConfigurationManager
 from sipsimple.configuration.settings import SIPSimpleSettings
-from sipsimple.core import ContactHeader, Engine, FromHeader, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
+from sipsimple.core import ContactHeader, Engine, FromHeader, Route, RouteHeader, SIPCoreError, SIPURI, Subscription, ToHeader
 from sipsimple.lookup import DNSLookup
 from sipsimple.payloads import ParserError
-from sipsimple.payloads.xcapdiff import XCAPDiff, Document, Element, Attribute
-from sipsimple.payloads.resourcelists import ResourceLists, List, Entry
+from sipsimple.payloads.xcapdiff import XCAPDiffDocument, Document, Element, Attribute
+from sipsimple.payloads.resourcelists import ResourceListsDocument, ResourceLists, List, Entry
 from sipsimple.storage import FileStorage
 from sipsimple.threading import run_in_twisted_thread
-from sipsimple.util import Route
 
 from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
@@ -127,7 +126,7 @@ class SubscriptionApplication(object):
             configuration.start()
         except ConfigurationError, e:
             raise RuntimeError("Failed to load sipclient's configuration: %s\nIf an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script." % str(e))
-        account_manager.load_accounts()
+        account_manager.load()
         if self.account_name is None:
             self.account = account_manager.default_account
         else:
@@ -159,11 +158,11 @@ class SubscriptionApplication(object):
         # generate the body
         list = List()
         resource_lists = ResourceLists([list])
-        list.append(Entry('resource-lists/users/sip:%s/index' % self.account.id))
-        list.append(Entry('rls-services/users/sip:%s/index' % self.account.id))
-        list.append(Entry('pres-rules/users/sip:%s/index' % self.account.id))
+        list.add(Entry('resource-lists/users/sip:%s/index' % self.account.id))
+        list.add(Entry('rls-services/users/sip:%s/index' % self.account.id))
+        list.add(Entry('pres-rules/users/sip:%s/index' % self.account.id))
         self.body = resource_lists.toxml(pretty_print=True)
-        self.content_type = ResourceLists.content_type
+        self.content_type = ResourceListsDocument.content_type
 
         # start logging
         self.logger.start()
@@ -275,7 +274,7 @@ class SubscriptionApplication(object):
                 reactor.callFromThread(reactor.callLater, timeout, self._subscribe)
             else:
                 route = self._subscription_routes.popleft()
-                route_header = RouteHeader(route.get_uri())
+                route_header = RouteHeader(route.uri)
                 self.subscription = Subscription(self.target.uri,
                                                  FromHeader(self.account.uri, self.account.display_name),
                                                  self.target,
@@ -288,9 +287,9 @@ class SubscriptionApplication(object):
                 self.subscription.subscribe(body=self.body, content_type=self.content_type, timeout=5)
 
     def _NH_SIPSubscriptionGotNotify(self, notification):
-        if notification.data.content_type == XCAPDiff.content_type:
+        if notification.data.content_type == XCAPDiffDocument.content_type:
             try:
-                xcap_diff = XCAPDiff.parse(notification.data.body)
+                xcap_diff = XCAPDiffDocument.parse(notification.data.body)
             except ParserError, e:
                 self.output.put("xcap-diff document is invalid: %s" % str(e))
             else:
@@ -301,7 +300,7 @@ class SubscriptionApplication(object):
         # create subscription and register to get notifications from it
         self._subscription_routes = deque(notification.data.result)
         route = self._subscription_routes.popleft()
-        route_header = RouteHeader(route.get_uri())
+        route_header = RouteHeader(route.uri)
         self.subscription = Subscription(self.target.uri,
                                          FromHeader(self.account.uri, self.account.display_name),
                                          self.target,

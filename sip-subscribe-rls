@@ -137,8 +137,6 @@ class SubscriptionApplication(object):
             raise RuntimeError("Cannot use bonjour account for presence subscription")
         elif not self.account.presence.enabled:
             raise RuntimeError("Presence is not enabled for account %s" % self.account.id)
-        elif not self.account.presence.use_rls:
-            raise RuntimeError("RLS-services is not enabled for account %s" % self.account.id)
         for account in account_manager.iter_accounts():
             if account == self.account:
                 account.sip.register = False

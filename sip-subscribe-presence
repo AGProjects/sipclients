@@ -277,7 +277,7 @@ class SubscriptionApplication(object):
                 reactor.callFromThread(reactor.callLater, timeout, self._subscribe)
             else:
                 route = self._subscription_routes.popleft()
-                route_header = RouteHeader(route.get_uri())
+                route_header = RouteHeader(route.uri)
                 self.subscription = Subscription(self.target.uri,
                                                  FromHeader(self.account.uri, self.account.display_name),
                                                  self.target,

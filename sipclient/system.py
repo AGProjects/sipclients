@@ -5,13 +5,12 @@
 
 __all__ = ['IPAddressMonitor']
 
-from application.notification import NotificationCenter
+from application.notification import NotificationCenter, NotificationData
 from application.system import host
 from eventlet import api
 
 from sipsimple.threading import run_in_twisted_thread
 from sipsimple.threading.green import run_in_green_thread
-from sipsimple.util import TimestampedNotificationData
 
 
 class IPAddressMonitor(object):
@@ -40,7 +39,7 @@ class IPAddressMonitor(object):
             if new_address != host.default_ip:
                 continue
             if new_address != current_address:
-                notification_center.post_notification(name='SystemIPAddressDidChange', sender=self, data=TimestampedNotificationData(old_ip_address=current_address, new_ip_address=new_address))
+                notification_center.post_notification(name='SystemIPAddressDidChange', sender=self, data=NotificationData(old_ip_address=current_address, new_ip_address=new_address))
                 current_address = new_address
             api.sleep(5)
 

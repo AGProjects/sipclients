@@ -312,7 +312,7 @@ class SIPMessageApplication(SIPApplication):
                 identity = '"%s" <%s>' % (self.account.display_name, identity)
             self.output.put("Sending MESSAGE from '%s' to '%s' using proxy %s\n" % (identity, self.target, route))
             self.output.put('Press Ctrl+D to stop the program.\n')
-            message_request = Message(FromHeader(self.account.uri, self.account.display_name), ToHeader(self.target), RouteHeader(route.get_uri()), 'text/plain', self.message, credentials=self.account.credentials)
+            message_request = Message(FromHeader(self.account.uri, self.account.display_name), ToHeader(self.target), RouteHeader(route.uri), 'text/plain', self.message, credentials=self.account.credentials)
             notification_center.add_observer(self, sender=message_request)
             message_request.send()
         else:
