@@ -33,7 +33,6 @@ setup(name         = "sipclients",
       packages   = ["sipclient", "sipclient.configuration"],
       data_files = [('share/sipclients/sounds', glob.glob(os.path.join('resources', 'sounds', '*.wav')))],
       scripts = ["sip-audio-session",
-                 "sip-auto-publish-presence",
                  "sip-message",
                  "sip-publish-presence",
                  "sip-register",
@@ -43,12 +42,8 @@ setup(name         = "sipclients",
                  "sip-subscribe-presence",
                  "sip-subscribe-rls",
                  "sip-subscribe-winfo",
-                 "sip-subscribe-xcap-diff",
-                 "xcap-dialog-rules",
-                 "xcap-directory",
-                 "xcap-icon",
-                 "xcap-pres-rules",
-                 "xcap-rls-services"]
+                 "sip-subscribe-xcap-diff"
+                 ]
 )
 
 
