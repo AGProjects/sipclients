@@ -1,3 +1,13 @@
+sipclients (0.21.0) UNRELEASED; urgency=low
+
+  * Print account GRUU if available
+  * Fixed scripts to match API changes
+  * Added ability to set nickname in sip-session
+  * Removed obsolete scripts
+  * Bumped debian standards version to 3.9.3
+
+ -- Saul Ibarra <saul@ag-projects.com>  Wed, 05 Sep 2012 13:52:31 +0200
+
 sipclients (0.20.0) unstable; urgency=low
 
   * Fixed code to work with latest changes in FileTransferStream in
