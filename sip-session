@@ -18,7 +18,7 @@ from application import log
 from application.notification import IObserver, NotificationCenter
 from application.python.queue import EventQueue
 from application.python import Null
-from eventlet import api, proc
+from eventlib import api, proc
 from twisted.internet import reactor
 from zope.interface import implements
 

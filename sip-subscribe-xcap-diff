@@ -16,7 +16,7 @@ from time import time
 from application import log
 from application.notification import IObserver, NotificationCenter, NotificationData
 from application.python.queue import EventQueue
-from eventlet.twistedutil import join_reactor
+from eventlib.twistedutil import join_reactor
 from twisted.internet import reactor
 from twisted.internet.error import ReactorNotRunning
 from zope.interface import implements

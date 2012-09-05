@@ -7,7 +7,7 @@ __all__ = ['IPAddressMonitor']
 
 from application.notification import NotificationCenter, NotificationData
 from application.system import host
-from eventlet import api
+from eventlib import api
 
 from sipsimple.threading import run_in_twisted_thread
 from sipsimple.threading.green import run_in_green_thread
