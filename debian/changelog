@@ -1,12 +1,12 @@
-sipclients (0.30.0) UNRELEASED; urgency=low
+sipclients (0.30.0) unstable; urgency=low
 
+  * Added ability to set nickname in sip-session
   * Print account GRUU if available
   * Fixed scripts to match API changes
-  * Added ability to set nickname in sip-session
   * Removed obsolete scripts
   * Bumped debian standards version to 3.9.3
 
- -- Saul Ibarra <saul@ag-projects.com>  Wed, 05 Sep 2012 13:52:31 +0200
+ -- Saul Ibarra <saul@ag-projects.com>  Thu, 06 Sep 2012 21:28:28 +0200
 
 sipclients (0.20.0) unstable; urgency=low
 
