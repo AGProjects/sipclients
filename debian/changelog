@@ -1,4 +1,4 @@
-sipclients (0.21.0) UNRELEASED; urgency=low
+sipclients (0.30.0) UNRELEASED; urgency=low
 
   * Print account GRUU if available
   * Fixed scripts to match API changes
