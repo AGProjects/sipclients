@@ -248,7 +248,7 @@ class RegistrationApplication(SIPApplication):
             self.output.put('%s Registration failed at %s:%d;transport=%s: %d %s\n' % (datetime.now().replace(microsecond=0), registrar.address, registrar.port, registrar.transport, code, reason))
 
     def _NH_SIPAccountRegistrationDidFail(self, notification):
-        self.output.put('%s Failed to register contact for sip:%s: %s (retrying in %.2f seconds)\n' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.timeout))
+        self.output.put('%s Failed to register contact for sip:%s: %s (retrying in %.2f seconds)\n' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.retry_after))
         self.success = False
         
         if self.max_registers is not None:
