@@ -1123,7 +1123,7 @@ class SIPSessionApplication(SIPApplication):
         self.registration_succeeded = True
 
     def _NH_SIPAccountRegistrationDidFail(self, notification):
-        send_notice('%s Failed to register contact for sip:%s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.timeout))
+        send_notice('%s Failed to register contact for sip:%s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.retry_after))
         self.registration_succeeded = False
 
     def _NH_SIPAccountRegistrationDidEnd(self, notification):
