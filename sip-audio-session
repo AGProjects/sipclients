@@ -600,10 +600,8 @@ class SIPAudioApplication(SIPApplication):
         notification_center = NotificationCenter()
         
         self.outgoing_session = session = Session(self.account)
-        audio_stream = AudioStream(self.account)
         notification_center.add_observer(self, sender=session)
-
-        session.connect(ToHeader(self.target), routes=notification.data.result, streams=[audio_stream])
+        session.connect(ToHeader(self.target), routes=notification.data.result, streams=[AudioStream()])
 
     def _NH_DNSLookupDidFail(self, notification):
         self.output.put('DNS lookup failed: %s\n' % notification.data.error)
