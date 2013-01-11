@@ -142,10 +142,7 @@ class RegistrationApplication(SIPApplication):
         account_manager = AccountManager()
         notification_center = NotificationCenter()
         settings = SIPSimpleSettings()
-    
-        for account in account_manager.iter_accounts():
-            if isinstance(account, Account):
-                account.sip.register = False
+
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -162,8 +159,16 @@ class RegistrationApplication(SIPApplication):
                 return
             else:
                 self.account = possible_accounts[0]
-        if isinstance(self.account, Account):
-            self.account.sip.register = True
+        for account in account_manager.iter_accounts():
+            if account is self.account:
+                if isinstance(account, Account):
+                    account.sip.register = True
+                    account.message_summary.enabled = False
+                    account.presence.enabled = False
+                    account.xcap.enabled = False
+                account.enabled = True
+            else:
+                account.enabled = False
         self.output.put('Using account %s\n' % self.account.id)
         notification_center.add_observer(self, sender=self.account)
         if self.account is BonjourAccount() and self.max_registers is not None:
