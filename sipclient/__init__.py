@@ -1,4 +1,4 @@
 # Copyright (C) 2008-2010 AG Projects. See LICENSE for details.
 #
 
-__version__ = "0.33.0"
+__version__ = "0.34.0"

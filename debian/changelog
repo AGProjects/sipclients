@@ -1,3 +1,9 @@
+sipclients (0.34.0) unstable; urgency=low
+
+  * Raised python-sipsimple version dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Tue, 19 Mar 2013 11:35:12 +0100
+
 sipclients (0.33.0) unstable; urgency=low
 
   * Fixed sip-register script to only register
