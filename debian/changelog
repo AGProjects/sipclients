@@ -1,3 +1,9 @@
+sipclients (0.35.0) unstable; urgency=low
+
+  * Raised python-sipsimple version dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Wed, 26 Jun 2013 16:37:35 +0200
+
 sipclients (0.34.0) unstable; urgency=low
 
   * Raised python-sipsimple version dependency
