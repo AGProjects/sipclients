@@ -1396,6 +1396,8 @@ class SIPSessionApplication(SIPApplication):
         send_notice('Stopped recording audio to %s' % notification.data.filename)
 
     def _NH_ChatStreamGotMessage(self, notification):
+        if not notification.data.message.content_type.startswith("text/"):
+            return
         if notification.data.message.sender.display_name:
             remote_identity = notification.data.message.sender.display_name
         else:
