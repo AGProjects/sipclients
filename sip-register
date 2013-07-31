@@ -282,30 +282,24 @@ class RegistrationApplication(SIPApplication):
         self.output.put('%s Registration ended.\n' % datetime.now().replace(microsecond=0))
 
     def _NH_BonjourAccountDidAddNeighbour(self, notification):
-        neighbour = notification.data.neighbour
-        display_name = notification.data.display_name or 'Unknown'
-        host = notification.data.host
-        uri = notification.data.uri
+        neighbour, record = notification.data.neighbour, notification.data.record
         now = datetime.now().replace(microsecond=0)
-        self.output.put('%s Discovered Bonjour neighbour: "%s (%s)" <%s>\n' % (now, display_name, host, uri))
-        self.neighbours[neighbour] = BonjourNeighbour(neighbour, uri, display_name, host)
+        self.output.put('%s Discovered Bonjour neighbour: "%s (%s)" <%s>\n' % (now, record.name, record.host, record.uri))
+        self.neighbours[neighbour] = BonjourNeighbour(neighbour, record.uri, record.name, record.host)
 
     def _NH_BonjourAccountDidUpdateNeighbour(self, notification):
-        neighbour = notification.data.neighbour
-        display_name = notification.data.display_name or 'Unknown'
-        host = notification.data.host
-        uri = notification.data.uri
+        neighbour, record = notification.data.neighbour, notification.data.record
         now = datetime.now().replace(microsecond=0)
         try:
             bonjour_neighbour = self.neighbours[neighbour]
         except KeyError:
-            self.output.put('%s Discovered Bonjour neighbour: "%s (%s)" <%s>\n' % (now, display_name, host, uri))
-            self.neighbours[neighbour] = BonjourNeighbour(neighbour, uri, display_name, host)
+            self.output.put('%s Discovered Bonjour neighbour: "%s (%s)" <%s>\n' % (now, record.name, record.host, record.uri))
+            self.neighbours[neighbour] = BonjourNeighbour(neighbour, record.uri, record.name, record.host)
         else:
-            self.output.put('%s Updated Bonjour neighbour: "%s (%s)" <%s>\n' % (now, display_name, host, uri))
-            bonjour_neighbour.display_name = display_name
-            bonjour_neighbour.host = host
-            bonjour_neighbour.uri = uri
+            self.output.put('%s Updated Bonjour neighbour: "%s (%s)" <%s>\n' % (now, record.name, record.host, record.uri))
+            bonjour_neighbour.display_name = record.name
+            bonjour_neighbour.host = record.host
+            bonjour_neighbour.uri = record.uri
 
     def _NH_BonjourAccountDidRemoveNeighbour(self, notification):
         neighbour = notification.data.neighbour
