@@ -188,16 +188,16 @@ class Logger(object):
         settings = SIPSimpleSettings()
         if not self.pjsip_to_stdout and not settings.logs.trace_pjsip:
             return
-        message = "(%(level)d) %(sender)14s: %(message)s" % notification.data.__dict__
+        message = "(%(level)d) %(message)s" % notification.data.__dict__
         if self.pjsip_to_stdout:
-            print '%s %s' % (notification.datetime, message)
+            print message
         if settings.logs.trace_pjsip:
             try:
                 self._init_log_file('pjsiptrace')
             except Exception:
                 pass
             else:
-                self._pjsiptrace_file.write('%s [%s %d] %s\n' % (notification.datetime, os.path.basename(sys.argv[0]).rstrip('.py'), os.getpid(), message))
+                self._pjsiptrace_file.write('[%s %d] %s\n' % (os.path.basename(sys.argv[0]).rstrip('.py'), os.getpid(), message))
                 self._pjsiptrace_file.flush()
 
     def _LH_DNSLookupTrace(self, notification):
