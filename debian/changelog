@@ -1,3 +1,12 @@
+sipclients (1.0.0) unstable; urgency=low
+
+  * Don't render non-text payloads in chat session
+  * Raised python-sipsimple version dependency
+  * Adapted to API changes in SIP SIMPLE SDK
+  * Dropped Python 2.6 support
+
+ -- Saul Ibarra <saul@ag-projects.com>  Fri, 09 Aug 2013 11:57:28 +0200
+
 sipclients (0.35.0) unstable; urgency=low
 
   * Raised python-sipsimple version dependency
