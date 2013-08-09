@@ -196,7 +196,12 @@ class OutgoingCallInitializer(object):
             if isinstance(stream, AudioStream):
                 send_notice('Audio session established using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
                 if stream.ice_active:
-                    send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
+                    send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address,
+                                                                                                     stream.local_rtp_port,
+                                                                                                     stream.local_rtp_candidate.type.lower(),
+                                                                                                     stream.remote_rtp_address,
+                                                                                                     stream.remote_rtp_port,
+                                                                                                     stream.remote_rtp_candidate.type.lower()))
                 else:
                     send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 if stream.srtp_active:
@@ -1441,15 +1446,15 @@ class SIPSessionApplication(SIPApplication):
             send_notice(" ")
             send_notice("Local ICE candidates:")
             for candidate in notification.data.local_candidates:
-                send_notice("(%s)\t %-25s\t type %s" % ("RTP" if candidate[1] == "1" else "RTCP", candidate[2], candidate[3]))
+                send_notice(str(candidate))
             send_notice(" ")
             send_notice("Remote ICE candidates:")
             for candidate in notification.data.remote_candidates:
-                send_notice("(%s)\t %-25s\t type %s" % ("RTP" if candidate[1] == "1" else "RTCP", candidate[2], candidate[3]))
+                send_notice(str(candidate))
             send_notice(" ")
-            send_notice("ICE connectivity check results:")
-            for check in notification.data.connectivity_checks_results:
-                send_notice("(%s)\t %s <--> %s \t%s" % ("RTP" if check[1] == "1" else "RTCP", check[2], check[3], check[5]))
+            send_notice("ICE connectivity valid pairs:")
+            for check in notification.data.valid_pairs:
+                send_notice(str(check))
             send_notice(" ")
 
     def _NH_AudioStreamICENegotiationDidFail(self, notification):

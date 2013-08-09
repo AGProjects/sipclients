@@ -702,7 +702,12 @@ class SIPAudioApplication(SIPApplication):
         audio_stream = notification.data.streams[0]
         self.output.put('Audio session established using "%s" codec at %sHz\n' % (audio_stream.codec, audio_stream.sample_rate))
         if audio_stream.ice_active:
-            self.output.put('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)\n' % (audio_stream.local_rtp_address, audio_stream.local_rtp_port, audio_stream.local_rtp_candidate_type, audio_stream.remote_rtp_address, audio_stream.remote_rtp_port, audio_stream.remote_rtp_candidate_type))
+            self.output.put('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)\n' % (audio_stream.local_rtp_address,
+                                                                                                   audio_stream.local_rtp_port,
+                                                                                                   audio_stream.local_rtp_candidate.type.lower(),
+                                                                                                   audio_stream.remote_rtp_address,
+                                                                                                   audio_stream.remote_rtp_port,
+                                                                                                   audio_stream.remote_rtp_candidate.type.lower()))
         else:
             self.output.put('Audio RTP endpoints %s:%d <-> %s:%d\n' % (audio_stream.local_rtp_address, audio_stream.local_rtp_port, audio_stream.remote_rtp_address, audio_stream.remote_rtp_port))
         if audio_stream.srtp_active:
