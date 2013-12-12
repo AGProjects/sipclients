@@ -203,7 +203,6 @@ class SIPAudioApplication(SIPApplication):
         message += '  i: change audio input device\n'
         message += '  o: change audio output device\n'
         message += '  a: change audio alert device\n'
-        message += '  <>: adjust echo cancellation\n'
         message += '  SPACE: hold/unhold\n'
         message += '  Ctrl-d: quit the program\n'
         message += '  ?: display this help message\n'
@@ -274,7 +273,7 @@ class SIPAudioApplication(SIPApplication):
             self.output.put('Using audio alert device: %s\n' % self.alert_audio_mixer.output_device)
 
         self.print_help()
-        
+
         inbound_ringtone = self.account.sounds.audio_inbound.sound_file if self.account.sounds.audio_inbound is not None else None
         outbound_ringtone = settings.sounds.audio_outbound
         if inbound_ringtone:
@@ -361,63 +360,51 @@ class SIPAudioApplication(SIPApplication):
                 old_input_device = self.voice_audio_mixer.input_device
             else:
                 old_input_device = None
-            tries = 0
-            while tries < len(input_devices):
-                new_input_device = input_devices[(input_devices.index(old_input_device)+1) % len(input_devices)]
-                try:
-                    self.voice_audio_mixer.set_sound_devices(new_input_device, self.voice_audio_mixer.output_device, self.voice_audio_mixer.ec_tail_length)
-                except SIPCoreError, e:
-                    tries += 1
-                    old_input_device = new_input_device
-                    self.output.put('Failed to set input device to %s: %s\n' % (new_input_device, str(e)))
+            tail_length = settings.audio.echo_canceller.tail_length if settings.audio.echo_canceller.enabled else 0
+            new_input_device = input_devices[(input_devices.index(old_input_device)+1) % len(input_devices)]
+            try:
+                self.voice_audio_mixer.set_sound_devices(new_input_device, self.voice_audio_mixer.output_device, tail_length)
+            except SIPCoreError, e:
+                self.output.put('Failed to set input device to %s: %s\n' % (new_input_device, str(e)))
+            else:
+                if new_input_device == u'system_default':
+                    self.output.put('Input device changed to %s (system default device)\n' % self.voice_audio_mixer.real_input_device)
                 else:
-                    if new_input_device == u'system_default':
-                        self.output.put('Input device changed to %s (system default device)\n' % self.voice_audio_mixer.real_input_device)
-                    else:
-                        self.output.put('Input device changed to %s\n' % new_input_device)
-                    break
+                    self.output.put('Input device changed to %s\n' % new_input_device)
         elif notification.data.input == 'o':
             output_devices = [None, u'system_default'] + sorted(engine.output_devices)
             if self.voice_audio_mixer.output_device in output_devices:
                 old_output_device = self.voice_audio_mixer.output_device
             else:
                 old_output_device = None
-            tries = 0
-            while tries < len(output_devices):
-                new_output_device = output_devices[(output_devices.index(old_output_device)+1) % len(output_devices)]
-                try:
-                    self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, new_output_device, self.voice_audio_mixer.ec_tail_length)
-                except SIPCoreError, e:
-                    tries += 1
-                    old_output_device = new_output_device
-                    self.output.put('Failed to set output device to %s: %s\n' % (new_output_device, str(e)))
+            tail_length = settings.audio.echo_canceller.tail_length if settings.audio.echo_canceller.enabled else 0
+            new_output_device = output_devices[(output_devices.index(old_output_device)+1) % len(output_devices)]
+            try:
+                self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, new_output_device, tail_length)
+            except SIPCoreError, e:
+                self.output.put('Failed to set output device to %s: %s\n' % (new_output_device, str(e)))
+            else:
+                if new_output_device == u'system_default':
+                    self.output.put('Output device changed to %s (system default device)\n' % self.voice_audio_mixer.real_output_device)
                 else:
-                    if new_output_device == u'system_default':
-                        self.output.put('Output device changed to %s (system default device)\n' % self.voice_audio_mixer.real_output_device)
-                    else:
-                        self.output.put('Output device changed to %s\n' % new_output_device)
-                    break
+                    self.output.put('Output device changed to %s\n' % new_output_device)
         elif notification.data.input == 'a':
             output_devices = [None, u'system_default'] + sorted(engine.output_devices)
             if self.alert_audio_mixer.output_device in output_devices:
                 old_output_device = self.alert_audio_mixer.output_device
             else:
                 old_output_device = None
-            tries = 0
-            while tries < len(output_devices):
-                new_output_device = output_devices[(output_devices.index(old_output_device)+1) % len(output_devices)]
-                try:
-                    self.alert_audio_mixer.set_sound_devices(self.alert_audio_mixer.input_device, new_output_device, self.alert_audio_mixer.ec_tail_length)
-                except SIPCoreError, e:
-                    tries += 1
-                    old_output_device = new_output_device
-                    self.output.put('Failed to set alert device to %s: %s\n' % (new_output_device, str(e)))
+            tail_length = settings.audio.echo_canceller.tail_length if settings.audio.echo_canceller.enabled else 0
+            new_output_device = output_devices[(output_devices.index(old_output_device)+1) % len(output_devices)]
+            try:
+                self.alert_audio_mixer.set_sound_devices(self.alert_audio_mixer.input_device, new_output_device, tail_length)
+            except SIPCoreError, e:
+                self.output.put('Failed to set alert device to %s: %s\n' % (new_output_device, str(e)))
+            else:
+                if new_output_device == u'system_default':
+                    self.output.put('Alert device changed to %s (system default device)\n' % self.alert_audio_mixer.real_output_device)
                 else:
-                    if new_output_device == u'system_default':
-                        self.output.put('Alert device changed to %s (system default device)\n' % self.alert_audio_mixer.real_output_device)
-                    else:
-                        self.output.put('Alert device changed to %s\n' % new_output_device)
-                    break
+                    self.output.put('Alert device changed to %s\n' % new_output_device)
         elif notification.data.input == 'h':
             if self.active_session is not None:
                 self.output.put('Ending audio session...\n')
@@ -479,20 +466,6 @@ class SIPAudioApplication(SIPApplication):
             if self.active_session.remote_identity.display_name:
                 identity = '"%s" <%s>' % (self.active_session.remote_identity.display_name, identity)
             self.output.put('Active audio session: "%s" (%d/%d)\n' % (identity, self.started_sessions.index(self.active_session)+1, len(self.started_sessions)))
-        elif notification.data.input in ('<', ','):
-            new_tail_length = self.voice_audio_mixer.ec_tail_length - 10
-            if new_tail_length < 0:
-                new_tail_length = 0
-            if new_tail_length != self.voice_audio_mixer.ec_tail_length:
-                self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, self.voice_audio_mixer.output_device, new_tail_length)
-            self.output.put('Set echo cancellation tail length to %d ms\n' % self.voice_audio_mixer.ec_tail_length)
-        elif notification.data.input in ('>', '.'):
-            new_tail_length = self.voice_audio_mixer.ec_tail_length + 10
-            if new_tail_length > 500:
-                new_tail_length = 500
-            if new_tail_length != self.voice_audio_mixer.ec_tail_length:
-                self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, self.voice_audio_mixer.output_device, new_tail_length)
-            self.output.put('Set echo cancellation tail length to %d ms\n' % self.voice_audio_mixer.ec_tail_length)
         elif notification.data.input == 'r':
             if self.active_session is None or not self.active_session.streams:
                 return
@@ -842,13 +815,14 @@ class SIPAudioApplication(SIPApplication):
             else:
                 self.ignore_local_unhold = False
 
-    def _NH_SIPSessionGotProposal(self, notification):
-        session = notification.sender
-        audio_streams = [stream for stream in notification.data.streams if isinstance(stream, AudioStream)]
-        if audio_streams:
-            session.accept_proposal(audio_streams)
-        else:
-            session.reject_proposal(488)
+    def _NH_SIPSessionNewProposal(self, notification):
+        if notification.data.originator == 'remote':
+            session = notification.sender
+            audio_streams = [stream for stream in notification.data.proposed_streams if isinstance(stream, AudioStream)]
+            if audio_streams:
+                session.accept_proposal(audio_streams)
+            else:
+                session.reject_proposal(488)
 
     def _NH_AudioStreamGotDTMF(self, notification):
         notification_center = NotificationCenter()
