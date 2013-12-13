@@ -1,9 +1,9 @@
-sipclients (1.1.0) UNRELEASED; urgency=medium
+sipclients (1.1.0) unstable; urgency=medium
 
   * Raised python-sipsimple version dependency
   * Adapted to API changes in SIP SIMPLE SDK
 
- -- Saul Ibarra <saul@ag-projects.com>  Thu, 12 Dec 2013 15:38:15 +0100
+ -- Saul Ibarra <saul@ag-projects.com>  Fri, 13 Dec 2013 13:46:36 +0100
 
 sipclients (1.0.0) unstable; urgency=low
 
