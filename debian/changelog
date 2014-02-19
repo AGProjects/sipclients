@@ -1,9 +1,9 @@
-sipclients (1.2.0) UNRELEASED; urgency=medium
+sipclients (1.2.0) unstable; urgency=medium
 
   * Raised python-sipsimple version dependency
   * Bumped Debian Standards-Version
 
- -- Saul Ibarra <saul@ag-projects.com>  Mon, 17 Feb 2014 17:22:29 +0100
+ -- Saul Ibarra <saul@ag-projects.com>  Wed, 19 Feb 2014 13:44:37 +0100
 
 sipclients (1.1.0) unstable; urgency=medium
 
