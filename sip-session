@@ -936,8 +936,10 @@ class SIPSessionApplication(SIPApplication):
 
         self.options = options
         self.target = target
-        self.logger = Logger(sip_to_stdout=options.trace_sip, msrp_to_stdout=options.trace_msrp,
-                             pjsip_to_stdout=options.trace_pjsip, notifications_to_stdout=options.trace_notifications)
+        self.logger = Logger(sip_to_stdout=options.trace_sip,
+                             msrp_to_stdout=options.trace_msrp,
+                             pjsip_to_stdout=options.trace_pjsip,
+                             notifications_to_stdout=options.trace_notifications)
 
         notification_center.add_observer(self, sender=self)
         notification_center.add_observer(self, sender=ui)
@@ -999,6 +1001,12 @@ class SIPSessionApplication(SIPApplication):
         notification_center = NotificationCenter()
         settings = SIPSimpleSettings()
         ui = UI()
+
+        settings.logs.trace_sip = self.options.trace_sip
+        settings.logs.trace_msrp = self.options.trace_msrp
+        settings.logs.trace_pjsip = self.options.trace_pjsip
+        settings.logs.trace_notifications = self.options.trace_notifications
+        settings.save()
 
         for account in account_manager.iter_accounts():
             if isinstance(account, Account):
@@ -1550,33 +1558,45 @@ class SIPSessionApplication(SIPApplication):
         remove_types = [type[1:] for type in types if type[0] == '-']
         toggle_types = [type for type in types if type[0] not in ('+', '-')]
 
+        settings = SIPSimpleSettings()
+
         if 'sip' in add_types or ('sip' in toggle_types and not self.logger.sip_to_stdout):
             self.logger.sip_to_stdout = True
+            settings.logs.trace_sip = True
             send_notice('SIP tracing to console is now activated')
         elif 'sip' in remove_types or ('sip' in toggle_types and self.logger.sip_to_stdout):
             self.logger.sip_to_stdout = False
+            settings.logs.trace_sip = False
             send_notice('SIP tracing to console is now deactivated')
 
         if 'msrp' in add_types or ('msrp' in toggle_types and not self.logger.msrp_to_stdout):
             self.logger.msrp_to_stdout = True
+            settings.logs.trace_msrp = True
             send_notice('MSRP tracing to console is now activated')
         elif 'msrp' in remove_types or ('msrp' in toggle_types and self.logger.msrp_to_stdout):
             self.logger.msrp_to_stdout = False
+            settings.logs.trace_msrp = False
             send_notice('MSRP tracing to console is now deactivated')
 
         if 'pjsip' in add_types or ('pjsip' in toggle_types and not self.logger.pjsip_to_stdout):
             self.logger.pjsip_to_stdout = True
+            settings.logs.trace_pjsip = True
             send_notice('PJSIP tracing to console is now activated')
         elif 'pjsip' in remove_types or ('pjsip' in toggle_types and self.logger.pjsip_to_stdout):
             self.logger.pjsip_to_stdout = False
+            settings.logs.trace_pjsip = False
             send_notice('PJSIP tracing to console is now deactivated')
 
         if 'notifications' in add_types or ('notifications' in toggle_types and not self.logger.notifications_to_stdout):
             self.logger.notifications_to_stdout = True
+            settings.logs.trace_notifications = True
             send_notice('Notification tracing to console is now activated')
         elif 'notifications' in remove_types or ('notifications' in toggle_types and self.logger.notifications_to_stdout):
             self.logger.notifications_to_stdout = False
+            settings.logs.trace_notifications = False
             send_notice('Notification tracing to console is now deactivated')
+
+        settings.save()
 
     def _CH_rtp(self, state='toggle'):
         if state == 'toggle':

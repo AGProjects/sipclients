@@ -26,10 +26,6 @@ class FileTransferSettingsExtension(FileTransferSettings):
 
 class LogsSettingsExtension(LogsSettings):
     directory = Setting(type=UserDataPath, default=UserDataPath('logs'))
-    trace_sip = Setting(type=bool, default=False)
-    trace_pjsip = Setting(type=bool, default=False)
-    trace_msrp = Setting(type=bool, default=False)
-    trace_xcap = Setting(type=bool, default=False)
     trace_notifications = Setting(type=bool, default=False)
 
 
