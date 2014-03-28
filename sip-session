@@ -167,7 +167,7 @@ class OutgoingCallInitializer(object):
         settings = SIPSimpleSettings()
         ui = UI()
         ringtone = settings.sounds.audio_outbound
-        if ringtone:
+        if ringtone and self.wave_ringtone is None:
             self.wave_ringtone = WavePlayer(SIPApplication.voice_audio_mixer, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
             SIPApplication.voice_audio_bridge.add(self.wave_ringtone)
             self.wave_ringtone.start()
@@ -639,7 +639,7 @@ class OutgoingTransferHandler(object):
         settings = SIPSimpleSettings()
         ui = UI()
         ringtone = settings.sounds.audio_outbound
-        if ringtone:
+        if ringtone and self.wave_ringtone is None:
             self.wave_ringtone = WavePlayer(SIPApplication.voice_audio_mixer, ringtone.path.normalized, volume=ringtone.volume, loop_count=0, pause_time=2)
             SIPApplication.voice_audio_bridge.add(self.wave_ringtone)
             self.wave_ringtone.start()
