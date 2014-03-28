@@ -1292,8 +1292,9 @@ class SIPSessionApplication(SIPApplication):
             self.outgoing_session = None
 
         on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
-        if not on_hold_streams and self.hold_tone:
+        if not on_hold_streams and self.hold_tone is not None:
             self.hold_tone.stop()
+            self.hold_tone = None
 
     def _NH_SIPSessionDidChangeHoldState(self, notification):
         session = notification.sender
@@ -1362,6 +1363,18 @@ class SIPSessionApplication(SIPApplication):
         send_notice(message)
         self._update_prompt()
 
+    def _NH_SIPSessionDidChangeHoldState(self, notification):
+        if notification.data.on_hold:
+            if self.hold_tone is None:
+                self.hold_tone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/hold_tone.wav').normalized, loop_count=0, pause_time=30, volume=50)
+                self.voice_audio_bridge.add(self.hold_tone)
+                self.hold_tone.start()
+        else:
+            on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
+            if not on_hold_streams and self.hold_tone is not None:
+                self.hold_tone.stop()
+                self.hold_tone = None
+
     def _NH_AudioStreamGotDTMF(self, notification):
         notification_center = NotificationCenter()
         digit = notification.data.digit
@@ -1371,18 +1384,6 @@ class SIPSessionApplication(SIPApplication):
         self.voice_audio_bridge.add(wave_player)
         wave_player.start()
         send_notice('Got DMTF %s' % notification.data.digit)
-
-    def _NH_AudioStreamDidChangeHoldState(self, notification):
-        if notification.data.on_hold:
-            if not self.hold_tone:
-                self.hold_tone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/hold_tone.wav').normalized, loop_count=0, pause_time=30, volume=50)
-                self.voice_audio_bridge.add(self.hold_tone)
-                self.hold_tone.start()
-        else:
-            on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream is not notification.sender and stream.on_hold]
-            if not on_hold_streams and self.hold_tone:
-                self.hold_tone.stop()
-                self.hold_tone = None
 
     def _NH_AudioStreamDidChangeRTPParameters(self, notification):
         stream = notification.sender
