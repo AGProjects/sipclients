@@ -5,8 +5,6 @@
 Logging support for SIP SIMPLE Client.
 """
 
-from __future__ import with_statement
-
 __all__ = ["Logger"]
 
 import datetime

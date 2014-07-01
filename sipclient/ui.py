@@ -7,8 +7,6 @@ User Agent working in a terminal text window. See sip_session.py script for
 an actual implementation.
 """
 
-from __future__ import with_statement
-
 __all__ = ["RichText", "CompoundRichText", "Prompt", "Question", "UI"]
 
 import atexit
