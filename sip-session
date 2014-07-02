@@ -1310,12 +1310,12 @@ class SIPSessionApplication(SIPApplication):
                     send_notice('%s has put the session on hold' % identity)
             elif not self.ignore_local_hold:
                 if session is self.active_session:
-                    send_notice('Session is put on hold')
+                    send_notice('Session was put on hold')
                 else:
                     identity = str(session.remote_identity.uri)
                     if session.remote_identity.display_name:
                         identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-                    send_notice('Session with %s is put on hold' % identity)
+                    send_notice('Session with %s was put on hold' % identity)
             else:
                 self.ignore_local_hold = False
             if self.hold_tone is None:
@@ -1333,12 +1333,12 @@ class SIPSessionApplication(SIPApplication):
                     send_notice('%s has taken the session out of hold' % identity)
             elif not self.ignore_local_unhold:
                 if session is self.active_session:
-                    send_notice('Session is taken out of hold')
+                    send_notice('Session was taken out of hold')
                 else:
                     identity = str(session.remote_identity.uri)
                     if session.remote_identity.display_name:
                         identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-                    send_notice('Session with %s is taken out of hold' % identity)
+                    send_notice('Session with %s was taken out of hold' % identity)
             else:
                 self.ignore_local_unhold = False
             on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
