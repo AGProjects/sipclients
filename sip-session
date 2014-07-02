@@ -1318,6 +1318,10 @@ class SIPSessionApplication(SIPApplication):
                     send_notice('Session with %s is put on hold' % identity)
             else:
                 self.ignore_local_hold = False
+            if self.hold_tone is None:
+                self.hold_tone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/hold_tone.wav').normalized, loop_count=0, pause_time=30, volume=50)
+                self.voice_audio_bridge.add(self.hold_tone)
+                self.hold_tone.start()
         else:
             if notification.data.originator == 'remote':
                 if session is self.active_session:
@@ -1337,6 +1341,10 @@ class SIPSessionApplication(SIPApplication):
                     send_notice('Session with %s is taken out of hold' % identity)
             else:
                 self.ignore_local_unhold = False
+            on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
+            if not on_hold_streams and self.hold_tone is not None:
+                self.hold_tone.stop()
+                self.hold_tone = None
 
     def _NH_SIPSessionNewProposal(self, notification):
         self.sessions_with_proposals.add(notification.sender)
@@ -1363,18 +1371,6 @@ class SIPSessionApplication(SIPApplication):
             message = '%s in session with %s' % (message, identity)
         send_notice(message)
         self._update_prompt()
-
-    def _NH_SIPSessionDidChangeHoldState(self, notification):
-        if notification.data.on_hold:
-            if self.hold_tone is None:
-                self.hold_tone = WavePlayer(self.voice_audio_mixer, ResourcePath('sounds/hold_tone.wav').normalized, loop_count=0, pause_time=30, volume=50)
-                self.voice_audio_bridge.add(self.hold_tone)
-                self.hold_tone.start()
-        else:
-            on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
-            if not on_hold_streams and self.hold_tone is not None:
-                self.hold_tone.stop()
-                self.hold_tone = None
 
     def _NH_AudioStreamGotDTMF(self, notification):
         notification_center = NotificationCenter()
