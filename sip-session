@@ -10,6 +10,7 @@ import sys
 
 from datetime import datetime
 from itertools import chain
+from lxml import html
 from optparse import OptionParser
 from threading import Event, Thread
 from time import sleep
@@ -1402,12 +1403,15 @@ class SIPSessionApplication(SIPApplication):
     def _NH_ChatStreamGotMessage(self, notification):
         if not notification.data.message.content_type.startswith("text/"):
             return
-        if notification.data.message.sender.display_name:
-            remote_identity = notification.data.message.sender.display_name
-        else:
-            remote_identity = notification.data.message.sender.uri
+        remote_identity = notification.data.message.sender.display_name or notification.data.message.sender.uri
+        doc = html.fromstring(notification.data.message.body)
+        if doc.body.text is not None:
+            doc.body.text = doc.body.text.lstrip('\n')
+        for br in doc.xpath('.//br'):
+            br.tail = '\n' + (br.tail or '')
+        head = RichText('%s> ' % remote_identity, foreground='blue')
         ui = UI()
-        ui.write(RichText('%s> ' % remote_identity, foreground='blue') + notification.data.message.body)
+        ui.writelines([head + line for line in doc.body.text_content().splitlines()])
 
     def _NH_DefaultAudioDeviceDidChange(self, notification):
         SIPApplication._NH_DefaultAudioDeviceDidChange(self, notification)
