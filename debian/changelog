@@ -1,3 +1,11 @@
+sipclients (1.4.2) unstable; urgency=medium
+
+  * Removed no longer needed future imports
+  * Fixed handling html and multiline messages in chat
+  * Fixed doubly defined notification handler
+
+ -- Saul Ibarra <saul@ag-projects.com>  Mon, 28 Jul 2014 14:43:38 +0200
+
 sipclients (1.4.1) unstable; urgency=medium
 
   * Raised python-sipsimple version dependency
