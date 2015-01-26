@@ -1,3 +1,9 @@
+sipclients (2.2.0) unstable; urgency=medium
+
+  * Raised python-sipsimple version dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Mon, 26 Jan 2015 17:15:25 +0100
+
 sipclients (2.0.0) unstable; urgency=medium
 
   * Reworded some messages
