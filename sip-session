@@ -205,8 +205,8 @@ class OutgoingCallInitializer(object):
                                                                                                      stream.remote_rtp_candidate.type.lower()))
                 else:
                     send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
-                if stream.srtp_active:
-                    send_notice('RTP audio stream is encrypted')
+                if stream.encryption.active:
+                    send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
         if session.remote_user_agent is not None:
             send_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
 
@@ -347,8 +347,8 @@ class IncomingCallInitializer(object):
                     send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
                 else:
                     send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
-                if stream.srtp_active:
-                    send_notice('RTP audio stream is encrypted')
+                if stream.encryption.active:
+                    send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
         if session.remote_user_agent is not None:
             send_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
 
@@ -1387,8 +1387,8 @@ class SIPSessionApplication(SIPApplication):
         send_notice('Audio RTP parameters changed:')
         send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
         send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
-        if stream.srtp_active:
-            send_notice('RTP audio stream is encrypted')
+        if stream.encryption.active:
+            send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
 
     def _NH_AudioStreamDidStartRecordingAudio(self, notification):
         send_notice('Recording audio to %s' % notification.data.filename)
