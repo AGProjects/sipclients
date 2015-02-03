@@ -946,9 +946,9 @@ class SIPSessionApplication(SIPApplication):
         notification_center.add_observer(self, sender=ui)
         notification_center.add_observer(self, name='SIPSessionNewIncoming')
         notification_center.add_observer(self, name='SIPSessionNewOutgoing')
-        notification_center.add_observer(self, name='AudioStreamDidChangeRTPParameters')
-        notification_center.add_observer(self, name='AudioStreamICENegotiationDidSucceed')
-        notification_center.add_observer(self, name='AudioStreamICENegotiationDidFail')
+        notification_center.add_observer(self, name='RTPStreamDidChangeRTPParameters')
+        notification_center.add_observer(self, name='RTPStreamICENegotiationDidSucceed')
+        notification_center.add_observer(self, name='RTPStreamICENegotiationDidFail')
 
         log.level.current = log.level.WARNING # get rid of twisted messages
         control_bindings={'s': 'trace sip',
@@ -1382,7 +1382,7 @@ class SIPSessionApplication(SIPApplication):
         wave_player.start()
         send_notice('Got DMTF %s' % notification.data.digit)
 
-    def _NH_AudioStreamDidChangeRTPParameters(self, notification):
+    def _NH_RTPStreamDidChangeRTPParameters(self, notification):
         stream = notification.sender
         send_notice('Audio RTP parameters changed:')
         send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
@@ -1444,7 +1444,7 @@ class SIPSessionApplication(SIPApplication):
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=notification.sender)
 
-    def _NH_AudioStreamICENegotiationDidSucceed(self, notification):
+    def _NH_RTPStreamICENegotiationDidSucceed(self, notification):
         send_notice(" ")
         send_notice("ICE negotiation succeeded in %s" % notification.data.duration)
         if self.rtp_statistics:
@@ -1462,7 +1462,7 @@ class SIPSessionApplication(SIPApplication):
                 send_notice(str(check))
             send_notice(" ")
 
-    def _NH_AudioStreamICENegotiationDidFail(self, notification):
+    def _NH_RTPStreamICENegotiationDidFail(self, notification):
         send_notice("\n")
         send_notice("ICE negotiation failed: %s" % notification.data.reason)
 

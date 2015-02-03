@@ -171,9 +171,9 @@ class SIPAudioApplication(SIPApplication):
         notification_center.add_observer(self, sender=self)
         notification_center.add_observer(self, sender=self.input)
         notification_center.add_observer(self, name='SIPSessionNewIncoming')
-        notification_center.add_observer(self, name='AudioStreamDidChangeRTPParameters')
-        notification_center.add_observer(self, name='AudioStreamICENegotiationDidSucceed')
-        notification_center.add_observer(self, name='AudioStreamICENegotiationDidFail')
+        notification_center.add_observer(self, name='RTPStreamDidChangeRTPParameters')
+        notification_center.add_observer(self, name='RTPStreamICENegotiationDidSucceed')
+        notification_center.add_observer(self, name='RTPStreamICENegotiationDidFail')
 
         if self.input:
             self.input.start()
@@ -833,7 +833,7 @@ class SIPAudioApplication(SIPApplication):
         self.voice_audio_bridge.add(wave_player)
         wave_player.start()
 
-    def _NH_AudioStreamDidChangeHoldState(self, notification):
+    def _NH_RTPStreamDidChangeHoldState(self, notification):
         if notification.data.on_hold:
             if not self.hold_tone.is_active:
                 self.hold_tone.start()
@@ -842,7 +842,7 @@ class SIPAudioApplication(SIPApplication):
             if not on_hold_streams and self.hold_tone.is_active:
                 self.hold_tone.stop()
 
-    def _NH_AudioStreamDidChangeRTPParameters(self, notification):
+    def _NH_RTPStreamDidChangeRTPParameters(self, notification):
         stream = notification.sender
         self.output.put('Audio RTP parameters changed:\n')
         self.output.put('Audio stream using "%s" codec at %sHz\n' % (stream.codec, stream.sample_rate))
@@ -899,10 +899,10 @@ class SIPAudioApplication(SIPApplication):
         self.output.put('Available audio input devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(self.engine.input_devices)))
         self.output.put('Available audio output devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(self.engine.output_devices)))
 
-    def _NH_AudioStreamICENegotiationDidSucceed(self, notification):
+    def _NH_RTPStreamICENegotiationDidSucceed(self, notification):
         self.output.put("ICE negotiation succeeded in %s\n" % notification.data.duration)
 
-    def _NH_AudioStreamICENegotiationDidFail(self, notification):
+    def _NH_RTPStreamICENegotiationDidFail(self, notification):
         self.output.put("ICE negotiation failed: %s\n" % notification.data.reason)
 
     def _print_new_session(self):
