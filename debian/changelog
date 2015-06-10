@@ -1,3 +1,10 @@
+sipclients (2.5.0) unstable; urgency=medium
+
+  * Adapted sip-session to changes in file transfers
+  * Raised python-sipsimple dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Wed, 10 Jun 2015 14:31:13 +0200
+
 sipclients (2.3.0) unstable; urgency=medium
 
   * Adapted to API changes in the SDK
