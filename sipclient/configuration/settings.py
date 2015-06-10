@@ -11,17 +11,13 @@ import os
 
 from sipsimple.configuration import Setting, SettingsGroup, SettingsObjectExtension
 from sipsimple.configuration.datatypes import Path
-from sipsimple.configuration.settings import AudioSettings, FileTransferSettings, LogsSettings
+from sipsimple.configuration.settings import AudioSettings, LogsSettings
 
 from sipclient.configuration.datatypes import SoundFile, UserDataPath
 
 
 class AudioSettingsExtension(AudioSettings):
     directory = Setting(type=UserDataPath, default=UserDataPath('history'))
-
-
-class FileTransferSettingsExtension(FileTransferSettings):
-    directory = Setting(type=UserDataPath, default=None, nillable=True)
 
 
 class LogsSettingsExtension(LogsSettings):
@@ -43,7 +39,6 @@ class SIPSimpleSettingsExtension(SettingsObjectExtension):
     resources_directory = Setting(type=Path, default=None, nillable=True)
 
     audio = AudioSettingsExtension
-    file_transfer = FileTransferSettingsExtension
     logs = LogsSettingsExtension
     sounds = SoundsSettings
 

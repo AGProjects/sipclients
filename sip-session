@@ -2,7 +2,6 @@
 # Copyright (C) 2008-2010 AG Projects. See LICENSE for details.
 #
 
-import hashlib
 import os
 import re
 import signal
@@ -17,9 +16,8 @@ from time import sleep
 
 from application import log
 from application.notification import IObserver, NotificationCenter
-from application.python.queue import EventQueue
 from application.python import Null
-from eventlib import api, proc
+from eventlib import api
 from twisted.internet import reactor
 from zope.interface import implements
 
@@ -564,11 +562,12 @@ class OutgoingTransferHandler(object):
         self.target = target
         self.filepath = filepath.decode(sys.getfilesystemencoding())
         self.file_selector = None
-        self.finished = False
         self.hash_compute_proc = None
         self.session = None
+        self.stream = None
+        self.handler = None
         self.wave_ringtone = None
-    
+
     @run_in_green_thread
     def start(self):
         if isinstance(self.account, BonjourAccount) and '@' not in self.target:
@@ -582,49 +581,63 @@ class OutgoingTransferHandler(object):
             self.target = SIPURI.parse(self.target)
         except SIPCoreError:
             send_notice('Illegal SIP URI: %s' % self.target)
+            return
+
+        send_notice('Preparing transfer...')
+        self.file_selector = FileSelector.for_file(self.filepath)
+        if '.' not in self.target.host and not isinstance(self.account, BonjourAccount):
+            self.target.host = '%s.%s' % (self.target.host, self.account.id.domain)
+        lookup = DNSLookup()
+        notification_center = NotificationCenter()
+        notification_center.add_observer(self, sender=lookup)
+        settings = SIPSimpleSettings()
+        if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
+            uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
+        elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
+            uri = SIPURI(host=self.account.id.domain)
         else:
-            send_notice('Computing hash...')
-            def compute_hash():
-                try:
-                    self.file_selector = FileSelector.for_file(self.filepath.encode('utf-8'))
-                except Exception, e:
-                    send_notice('Failed to read file "%s": %s' % (self.filepath, e))
-            self.hash_compute_proc = proc.spawn(compute_hash)
-            
-            if '.' not in self.target.host and not isinstance(self.account, BonjourAccount):
-                self.target.host = '%s.%s' % (self.target.host, self.account.id.domain)
-            lookup = DNSLookup()
-            notification_center = NotificationCenter()
-            notification_center.add_observer(self, sender=lookup)
-            settings = SIPSimpleSettings()
-            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
-                uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
-            elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
-                uri = SIPURI(host=self.account.id.domain)
-            else:
-                uri = self.target
-            lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
+            uri = self.target
+        lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
+
+    def _terminate(self, failure_reason=None):
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self, sender=self.session)
+        notification_center.remove_observer(self, sender=self.stream)
+        notification_center.remove_observer(self, sender=self.handler)
+
+        ui = UI()
+        ui.status = None
+
+        if self.wave_ringtone:
+            self.wave_ringtone.stop()
+            self.wave_ringtone = None
+
+        if failure_reason is None:
+            send_notice('File transfer of %s finished' % os.path.basename(self.filepath))
+        else:
+            send_notice('File transfer of %s failed: %s' % (os.path.basename(self.filepath), failure_reason))
+
+        self.session = None
+        self.stream = None
+        self.handler = None
 
     def handle_notification(self, notification):
         handler = getattr(self, '_NH_%s' % notification.name, Null)
         handler(notification)
 
     def _NH_DNSLookupDidSucceed(self, notification):
-        notification_center = NotificationCenter()
-        notification_center.remove_observer(self, sender=notification.sender)
-        
-        self.hash_compute_proc.wait()
-        if self.file_selector is None:
-            return
-
+        notification.center.remove_observer(self, sender=notification.sender)
         self.session = Session(self.account)
-        notification_center.add_observer(self, sender=self.session)
-        self.session.connect(ToHeader(self.target), routes=notification.data.result, streams=[FileTransferStream(self.file_selector, 'sendonly')])
+        self.stream = FileTransferStream(self.file_selector, 'sendonly')
+        self.handler = self.stream.handler
+        notification.center.add_observer(self, sender=self.session)
+        notification.center.add_observer(self, sender=self.stream)
+        notification.center.add_observer(self, sender=self.handler)
+        self.session.connect(ToHeader(self.target), routes=notification.data.result, streams=[self.stream])
 
     def _NH_DNSLookupDidFail(self, notification):
+        notification.center.remove_observer(self, sender=notification.sender)
         send_notice('File transfer to %s failed: DNS lookup error: %s' % (self.target, notification.data.error))
-        notification_center = NotificationCenter()
-        notification_center.remove_observer(self, sender=notification.sender)
 
     def _NH_SIPSessionNewOutgoing(self, notification):
         session = notification.sender
@@ -652,9 +665,6 @@ class OutgoingTransferHandler(object):
             self.wave_ringtone.stop()
         ui.status = 'Connecting...'
 
-        notification_center = NotificationCenter()
-        notification_center.add_observer(self, sender=notification.sender.proposed_streams[0])
-
     def _NH_SIPSessionDidStart(self, notification):
         session = notification.sender
 
@@ -666,46 +676,12 @@ class OutgoingTransferHandler(object):
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
         send_notice("File transfer for %s to '%s' started" % (os.path.basename(self.filepath), identity))
 
-    def _NH_SIPSessionDidFail(self, notification):
-        notification_center = NotificationCenter()
-        session = notification.sender
-        notification_center.remove_observer(self, sender=session)
+    def _NH_MediaStreamDidNotInitialize(self, notification):
+        self._terminate(failure_reason=notification.data.reason)
 
-        ui = UI()
-        ui.status = None
-
-        if self.wave_ringtone:
-            self.wave_ringtone.stop()
-        if notification.data.failure_reason == 'user request' and notification.data.code == 487:
-            send_notice('File transfer cancelled')
-        elif notification.data.failure_reason == 'user request':
-            send_notice('File transfer rejected by user (%d %s)' % (notification.data.code, notification.data.reason))
-        else:
-            send_notice('File transfer failed: %s' % notification.data.failure_reason)
-
-    def _NH_SIPSessionDidEnd(self, notification):
-        notification_center = NotificationCenter()
-        session = notification.sender
-        notification_center.remove_observer(self, sender=session)
-        notification_center.remove_observer(self, sender=session.streams[0] if session.streams else session.proposed_streams[0])
-
-        ui = UI()
-        ui.status = None
-
-        if not self.finished:
-            send_notice('File transfer of %s canceled by %s party' % (os.path.basename(self.filepath), notification.data.originator))
-
-    def _NH_FileTransferStreamDidDeliverChunk(self, notification):
-        ui = UI()
-        ui.status = '%s: %s%%' % (os.path.basename(self.filepath), notification.data.transferred_bytes*100//notification.data.file_size)
-
-    def _NH_FileTransferStreamDidNotDeliverChunk(self, notification):
-        send_notice('Failed to deliver chunk within file transfer of %s (%d %s)' % (os.path.basename(self.filepath), notification.data.code, notification.data.reason))
-
-    def _NH_FileTransferStreamDidFinish(self, notification):
-        self.finished = True
-        send_notice('File transfer of %s finished' % os.path.basename(self.filepath))
+    def _NH_FileTransferHandlerDidEnd(self, notification):
         self.session.end()
+        self._terminate(failure_reason=notification.data.reason)
 
 
 class IncomingTransferHandler(object):
@@ -716,36 +692,27 @@ class IncomingTransferHandler(object):
 
     def __init__(self, session, auto_answer_interval=None):
         self.session = session
+        self.stream = None
+        self.handler = None
         self.auto_answer_interval = auto_answer_interval
         self.file = None
         self.filename = None
-        self.file_write_queue = EventQueue(self.write_chunk, name='File writing thread')
         self.finished = False
         self.hash = None
         self.question = None
         self.wave_ringtone = None
 
     def start(self):
-        settings = SIPSimpleSettings()
-        stream = self.session.proposed_streams[0]
-        self.file_selector = stream.file_selector
-        self.filename = filename = os.path.join(settings.file_transfer.directory.normalized, self.file_selector.name.decode('utf-8'))
-        i = 1
-        while os.path.exists(filename):
-            filename = '%s.%d' % (self.filename, i)
-            i += 1
-        self.filename = filename
-        try:
-            self.file = open(self.filename, 'wb')
-        except Exception, e:
-            send_notice('Failed to open file "%s" for writing: %s' % (self.filename, e))
-            self.session.reject(486)
-            return
-        self.hash = hashlib.sha1()
+        self.stream = self.session.proposed_streams[0]
+        self.handler = self.stream.handler
+        self.file_selector = self.stream.file_selector
+        self.filename = self.file_selector.name
 
         IncomingTransferHandler.sessions += 1
         notification_center = NotificationCenter()
         notification_center.add_observer(self, sender=self.session)
+        notification_center.add_observer(self, sender=self.stream)
+        notification_center.add_observer(self, sender=self.handler)
 
         # start auto-answer
         self.answer_timer = None
@@ -779,17 +746,31 @@ class IncomingTransferHandler(object):
         ui = UI()
         ui.add_question(self.question)
 
-    def write_chunk(self, data):
-        if data is not None:
-            self.file.write(data)
-            self.hash.update(data)
+    def _terminate(self, failure_reason=None):
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self, sender=self.session)
+        notification_center.remove_observer(self, sender=self.stream)
+        notification_center.remove_observer(self, sender=self.handler)
+
+        ui = UI()
+        ui.status = None
+
+        if self.question is not None:
+            notification_center.remove_observer(self, sender=self.question)
+            ui.remove_question(self.question)
+            self.question = None
+
+        if self.wave_ringtone:
+            self.wave_ringtone.stop()
+
+        if failure_reason is None:
+            send_notice('File transfer of %s finished' % os.path.basename(self.filename))
         else:
-            self.file.close()
-            if self.finished:
-                local_hash = 'sha1:' + ':'.join(re.findall(r'..', self.hash.hexdigest().upper()))
-                remote_hash = self.file_selector.hash
-                if local_hash != remote_hash:
-                    send_notice('Warning: hash of transferred file does not match the remote hash (file may have changed).')
+            send_notice('File transfer of %s failed: %s' % (os.path.basename(self.filename), failure_reason))
+
+        self.session = None
+        self.stream = None
+        self.handler = None
 
     def handle_notification(self, notification):
         handler = getattr(self, '_NH_%s' % notification.name, Null)
@@ -807,7 +788,7 @@ class IncomingTransferHandler(object):
         elif answer == 'r':
             self.session.reject()
             ui.status = 'Rejecting...'
-        
+
         if IncomingTransferHandler.sessions == 1:
             if self.wave_ringtone:
                 self.wave_ringtone.stop()
@@ -842,8 +823,6 @@ class IncomingTransferHandler(object):
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
         send_notice("File transfer for %s with '%s' started" % (os.path.basename(self.filename), identity))
 
-        self.file_write_queue.start()
-
         if IncomingTransferHandler.sessions == 1:
             if self.wave_ringtone:
                 self.wave_ringtone.stop()
@@ -853,18 +832,6 @@ class IncomingTransferHandler(object):
                 IncomingTransferHandler.tone_ringtone = None
 
     def _NH_SIPSessionDidFail(self, notification):
-        notification_center = NotificationCenter()
-        ui = UI()
-        session = notification.sender
-        notification_center.remove_observer(self, sender=session)
-
-        ui.status = None
-
-        if self.question is not None:
-            notification_center.remove_observer(self, sender=self.question)
-            ui.remove_question(self.question)
-            self.question = None
-
         IncomingTransferHandler.sessions -= 1
         if self.wave_ringtone:
             self.wave_ringtone.stop()
@@ -872,36 +839,20 @@ class IncomingTransferHandler(object):
         if IncomingTransferHandler.sessions == 0 and IncomingTransferHandler.tone_ringtone is not None:
             IncomingTransferHandler.tone_ringtone.stop()
             IncomingTransferHandler.tone_ringtone = None
-        if notification.data.failure_reason == 'user request' and notification.data.code == 487:
-            send_notice('File transfer cancelled by user')
-        elif notification.data.failure_reason == 'user request':
-            send_notice('File transfer rejected (%d %s)' % (notification.data.code, notification.data.reason))
-        else:
-            send_notice('File transfer failed: %s' % notification.data.failure_reason)
 
-    def _NH_SIPSessionDidEnd(self, notification):
-        notification_center = NotificationCenter()
-        session = notification.sender
-        notification_center.remove_observer(self, sender=session)
-        notification_center.remove_observer(self, sender=session.streams[0] if session.streams else session.proposed_streams[0])
+    def _NH_MediaStreamDidNotInitialize(self, notification):
+        self._terminate(failure_reason=notification.data.reason)
 
+    def _NH_FileTransferHandlerDidInitialize(self, notification):
+        self.filename = self.stream.file_selector.name
+
+    def _NH_FileTransferHandlerProgress(self, notification):
         ui = UI()
-        ui.status = None
+        ui.status = '%s: %s%%' % (os.path.basename(self.filename), notification.data.transferred_bytes*100//notification.data.total_bytes)
 
-        if not self.finished:
-            send_notice('File transfer of %s canceled by %s party' % (os.path.basename(self.filename), notification.data.originator))
-
-        self.file_write_queue.put(None)
-        self.file_write_queue.stop()
-
-    def _NH_FileTransferStreamGotChunk(self, notification):
-        ui = UI()
-        ui.status = '%s: %s%%' % (os.path.basename(self.filename), notification.data.transferred_bytes*100//notification.data.file_size)
-        self.file_write_queue.put(notification.data.content)
-
-    def _NH_FileTransferStreamDidFinish(self, notification):
-        self.finished = True
-        send_notice('File transfer of %s finished (file saved to "%s").' % (os.path.basename(self.filename), self.filename))
+    def _NH_FileTransferHandlerDidEnd(self, notification):
+        reactor.callFromThread(reactor.callLater, 0, self.session.end)
+        self._terminate(failure_reason=notification.data.reason)
 
 
 class SIPSessionApplication(SIPApplication):
@@ -1180,11 +1131,12 @@ class SIPSessionApplication(SIPApplication):
 
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
-        transfer_streams = [stream for stream in session.proposed_streams if stream.type == 'file-transfer']
+        transfer_streams = [stream for stream in session.proposed_streams if stream.type == 'file-transfer' and stream.direction == 'recvonly']
         # only allow sessions with 0 or 1 file transfers
-        if len(transfer_streams) not in (0, 1):
-            session.reject(488)
         if transfer_streams:
+            if len(transfer_streams) > 1:
+                session.reject(488)
+                return
             transfer_handler = IncomingTransferHandler(session, self.options.auto_answer_interval)
             transfer_handler.start()
         else:
@@ -1495,6 +1447,9 @@ class SIPSessionApplication(SIPApplication):
         call_initializer.start()
 
     def _CH_send(self, target, filepath):
+        if '~' in filepath:
+            filepath = os.path.expanduser(filepath)
+        filepath = os.path.abspath(filepath)
         transfer_handler = OutgoingTransferHandler(self.account, target, filepath)
         transfer_handler.start()
 
