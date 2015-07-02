@@ -160,7 +160,6 @@ class SubscriptionApplication(object):
             tls_ca_file=os.path.expanduser(settings.tls.ca_list) if settings.tls.ca_list else None,
             tls_cert_file=os.path.expanduser(self.account.tls.certificate) if self.account.tls.certificate else None,
             tls_privkey_file=os.path.expanduser(self.account.tls.certificate) if self.account.tls.certificate else None,
-            tls_timeout=settings.tls.timeout,
             user_agent=settings.user_agent,
             sample_rate=settings.audio.sample_rate,
             rtp_port_range=(settings.rtp.port_range.start, settings.rtp.port_range.end),
