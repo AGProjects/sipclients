@@ -30,9 +30,8 @@ from sipsimple.configuration import ConfigurationError
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
 from sipsimple.session import IllegalStateError, Session
-from sipsimple.streams.rtp.audio import AudioStream
-from sipsimple.streams.msrp.chat import ChatStream
-from sipsimple.streams.msrp.filetransfer import FileSelector, FileTransferStream
+from sipsimple.streams import MediaStreamRegistry
+from sipsimple.streams.msrp.filetransfer import FileSelector
 from sipsimple.storage import FileStorage
 from sipsimple.threading.green import run_in_green_thread
 
@@ -77,11 +76,8 @@ class RTPStatisticsThread(Thread):
         application = SIPSessionApplication()
         while not self.stopped:
             if application.active_session is not None and application.active_session.streams:
-                try:
-                    audio_stream = [stream for stream in application.active_session.streams if isinstance(stream, AudioStream)][0]
-                except IndexError:
-                    pass
-                else:
+                audio_stream = next((stream for stream in application.active_session.streams if stream.type == 'audio'), None)
+                if audio_stream is not None:
                     stats = audio_stream.statistics
                     if stats is not None:
                         reactor.callFromThread(send_notice, '%s RTP statistics: RTT=%d ms, packet loss=%.1f%%, jitter RX/TX=%d/%d ms' % 
@@ -104,9 +100,9 @@ class OutgoingCallInitializer(object):
         self.target = target
         self.streams = []
         if audio:
-            self.streams.append(AudioStream())
+            self.streams.append(MediaStreamRegistry.AudioStream())
         if chat:
-            self.streams.append(ChatStream())
+            self.streams.append(MediaStreamRegistry.ChatStream())
         self.wave_ringtone = None
 
     def start(self):
@@ -194,7 +190,7 @@ class OutgoingCallInitializer(object):
         application.outgoing_session = None
 
         for stream in notification.data.streams:
-            if isinstance(stream, AudioStream):
+            if stream.type == 'audio':
                 send_notice('Audio session established using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
                 if stream.ice_active:
                     send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address,
@@ -341,7 +337,7 @@ class IncomingCallInitializer(object):
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
         send_notice("SIP session with '%s' established" % identity)
         for stream in notification.data.streams:
-            if isinstance(stream, AudioStream):
+            if stream.type == 'audio':
                 send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
                 if stream.ice_active:
                     send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
@@ -389,9 +385,9 @@ class OutgoingProposalHandler(object):
         self.session = session
         self.stream = None
         if audio:
-            self.stream = AudioStream()
+            self.stream = MediaStreamRegistry.AudioStream()
         if chat:
-            self.stream = ChatStream()
+            self.stream = MediaStreamRegistry.ChatStream()
         if not self.stream:
             raise ValueError("Need to specify exactly one stream")
 
@@ -630,7 +626,7 @@ class OutgoingTransferHandler(object):
     def _NH_DNSLookupDidSucceed(self, notification):
         notification.center.remove_observer(self, sender=notification.sender)
         self.session = Session(self.account)
-        self.stream = FileTransferStream(self.file_selector, 'sendonly')
+        self.stream = MediaStreamRegistry.FileTransferStream(self.file_selector, 'sendonly')
         self.handler = self.stream.handler
         notification.center.add_observer(self, sender=self.session)
         notification.center.add_observer(self, sender=self.stream)
@@ -1045,10 +1041,7 @@ class SIPSessionApplication(SIPApplication):
     def _NH_UIInputGotText(self, notification):
         msrp_chat = None
         if self.active_session is not None:
-            try:
-                msrp_chat = [stream for stream in self.active_session.streams if isinstance(stream, ChatStream)][0]
-            except IndexError:
-                pass
+            msrp_chat = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
         if msrp_chat is None:
             send_notice('No active chat session')
             return
@@ -1749,11 +1742,8 @@ class SIPSessionApplication(SIPApplication):
     @run_in_green_thread
     def _CH_dtmf(self, tones):
         if self.active_session is not None:
-            try:
-                audio_stream = [stream for stream in self.active_session.streams if isinstance(stream, AudioStream)][0]
-            except IndexError:
-                pass
-            else:
+            audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
+            if audio_stream is not None:
                 notification_center = NotificationCenter()
                 for digit in tones:
                     filename = 'sounds/dtmf_%s_tone.wav' % {'*': 'star', '#': 'pound'}.get(digit, digit)
@@ -1769,11 +1759,8 @@ class SIPSessionApplication(SIPApplication):
     def _CH_record(self, state='toggle'):
         if self.active_session is None:
             return
-        try:
-            audio_stream = [stream for stream in self.active_session.streams if isinstance(stream, AudioStream)][0]
-        except IndexError:
-            pass
-        else:
+        audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
+        if audio_stream is not None:
             if state == 'toggle':
                 new_state = not audio_stream.recording_active
             elif state == 'on':

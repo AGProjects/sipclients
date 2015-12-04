@@ -29,7 +29,7 @@ from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.core import Engine, SIPCoreError, SIPURI, ToHeader
 from sipsimple.lookup import DNSLookup
 from sipsimple.session import Session
-from sipsimple.streams.rtp.audio import AudioStream
+from sipsimple.streams import MediaStreamRegistry
 from sipsimple.storage import FileStorage
 
 from sipclient.configuration import config_directory
@@ -348,7 +348,7 @@ class SIPAudioApplication(SIPApplication):
         elif notification.data.input in ('y', 'n') and self.incoming_sessions:
             session = self.incoming_sessions.pop(0)
             if notification.data.input == 'y':
-                session.accept([stream for stream in session.proposed_streams if isinstance(stream, AudioStream)])
+                session.accept([stream for stream in session.proposed_streams if stream.type == 'audio'])
             else:
                 session.reject()
         elif notification.data.input == 'm':
@@ -568,7 +568,7 @@ class SIPAudioApplication(SIPApplication):
         
         self.outgoing_session = session = Session(self.account)
         notification_center.add_observer(self, sender=session)
-        session.connect(ToHeader(self.target), routes=notification.data.result, streams=[AudioStream()])
+        session.connect(ToHeader(self.target), routes=notification.data.result, streams=[MediaStreamRegistry.AudioStream()])
 
     def _NH_DNSLookupDidFail(self, notification):
         self.output.put('DNS lookup failed: %s\n' % notification.data.error)
@@ -577,7 +577,7 @@ class SIPAudioApplication(SIPApplication):
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
         for stream in notification.data.streams:
-            if isinstance(stream, AudioStream):
+            if stream.type == 'audio':
                 break
         else:
             session.reject(415)
@@ -586,12 +586,12 @@ class SIPAudioApplication(SIPApplication):
         notification_center.add_observer(self, sender=session)
         if self.options.auto_answer_interval is not None:
             if self.options.auto_answer_interval == 0:
-                session.accept([stream for stream in session.proposed_streams if isinstance(stream, AudioStream)])
+                session.accept([stream for stream in session.proposed_streams if stream.type == 'audio'])
                 return
             else:
                 def auto_answer():
                     self.incoming_sessions.remove(session)
-                    session.accept([stream for stream in session.proposed_streams if isinstance(stream, AudioStream)])
+                    session.accept([stream for stream in session.proposed_streams if stream.type == 'audio'])
                 timer = reactor.callLater(self.options.auto_answer_interval, auto_answer)
                 self.answer_timers[id(session)] = timer
         session.send_ring_indication()
@@ -818,7 +818,7 @@ class SIPAudioApplication(SIPApplication):
     def _NH_SIPSessionNewProposal(self, notification):
         if notification.data.originator == 'remote':
             session = notification.sender
-            audio_streams = [stream for stream in notification.data.proposed_streams if isinstance(stream, AudioStream)]
+            audio_streams = [stream for stream in notification.data.proposed_streams if stream.type == 'audio']
             if audio_streams:
                 session.accept_proposal(audio_streams)
             else:
