@@ -684,7 +684,7 @@ class SIPAudioApplication(SIPApplication):
         else:
             self.output.put('Audio RTP endpoints %s:%d <-> %s:%d\n' % (audio_stream.local_rtp_address, audio_stream.local_rtp_port, audio_stream.remote_rtp_address, audio_stream.remote_rtp_port))
         if audio_stream.encryption.active:
-            send_notice('RTP audio stream is encrypted using %s (%s)\n' % (audio_stream.encryption.type, audio_stream.encryption.cipher))
+            self.output.put('RTP audio stream is encrypted using %s (%s)\n' % (audio_stream.encryption.type, audio_stream.encryption.cipher))
         if session.remote_user_agent is not None:
             self.output.put('Remote SIP User Agent is "%s"\n' % session.remote_user_agent)
         self.started_sessions.append(session)
@@ -848,7 +848,7 @@ class SIPAudioApplication(SIPApplication):
         self.output.put('Audio stream using "%s" codec at %sHz\n' % (stream.codec, stream.sample_rate))
         self.output.put('Audio RTP endpoints %s:%d <-> %s:%d\n' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
         if stream.encryption.active:
-            send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
+            self.output.put('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
 
     def _NH_AudioStreamDidStartRecordingAudio(self, notification):
         self.output.put('Recording audio to %s\n' % notification.data.filename)
