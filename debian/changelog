@@ -1,3 +1,10 @@
+sipclients (3.0.0) unstable; urgency=medium
+
+  * Generalised use of streams
+  * Raised python-sipsimple version dependency
+
+ -- Saul Ibarra <saul@ag-projects.com>  Tue, 08 Mar 2016 17:16:07 +0100
+
 sipclients (2.6.0) unstable; urgency=medium
 
   * Remove use of no longer existing setting
