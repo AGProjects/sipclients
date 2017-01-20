@@ -3,7 +3,7 @@ Section: python
 Priority: optional
 Maintainer: Dan Pascu <dan@ag-projects.com>
 Uploaders: Adrian Georgescu <ag@ag-projects.com>
-Build-Depends: debhelper (>= 7.3.5), python (>= 2.7)
+Build-Depends: debhelper (>= 9), python (>= 2.7)
 Standards-Version: 3.9.8
 Homepage: http://sipsimpleclient.org
 
