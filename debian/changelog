@@ -1,3 +1,12 @@
+sipclients (3.1.0) unstable; urgency=medium
+
+  * Raised python-sipsimple version dependency
+  * Increased debian compatibility level to 9
+  * Updated debian standards version
+  * Updated debian uploaders
+
+ -- Dan Pascu <dan@ag-projects.com>  Fri, 20 Jan 2017 06:51:52 +0200
+
 sipclients (3.0.0) unstable; urgency=medium
 
   * Generalised use of streams
