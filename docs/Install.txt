@@ -2,9 +2,6 @@
 Installation procedure for SIP SIMPLE clients
 ---------------------------------------------
 
-Copyright (c) 2008-2010 AG Projects
-http://ag-projects.com
-
 Home page: http://sipsimpleclient.org
 
 This document described the manual installation procedure on Linux, MacOSX

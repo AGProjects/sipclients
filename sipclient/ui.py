@@ -1,5 +1,3 @@
-# Copyright (C) 2008-2010 AG Projects. See LICENSE for details.
-#
 
 """
 Implements a library that can be used for buildina a fully featured SIP

@@ -1,5 +1,3 @@
-# Copyright (C) 2008-2010 AG Projects. See LICENSE for details.
-#
 
 """System utilities used by the sipclient scripts"""
 
