@@ -1,6 +1,5 @@
 include MANIFEST.in AUTHORS LICENSE build_inplace
 recursive-include debian changelog compat control copyright rules
-recursive-include debian pycompat pyversions
 recursive-include debian dirs docs
 recursive-include debian/source format
 recursive-include docs *.txt
