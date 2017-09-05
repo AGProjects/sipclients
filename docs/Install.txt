@@ -4,29 +4,21 @@ Installation procedure for SIP SIMPLE clients
 
 Home page: http://sipsimpleclient.org
 
-This document described the manual installation procedure on Linux, MacOSX
-Leopard 10.5 and Snow Leopard 10.6 operating systems.
+This document described the manual installation procedure for Linux and
+MacOSX operating systems.
 
 
 Step 1. Install SIP SIMPLE client SDK
 -------------------------------------
 
-Follow the instructions in the docs directory of the python-sipsimple
-distribution archive available at:
+Follow the instructions in the docs directory of python-sipsimple,
+available from:
 
-http://download.ag-projects.com/SipClient/
-
-
-Step 2. Install dependencies
-----------------------------
-
-sudo easy_install PIL
+https://github.com/AGProjects/python-sipsimple
 
 
-Step 3. Install SIP SIMPLE clients
+Step 2. Install SIP SIMPLE clients
 ----------------------------------
-
-Download and unpack siplients from http://download.ag-projects.com/SipClient
 
 cd sipclients
 sudo python setup.py install
