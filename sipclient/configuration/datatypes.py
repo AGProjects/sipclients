@@ -1,7 +1,5 @@
 
-"""
-Definitions of datatypes for use in settings extensions.
-"""
+"""Definitions of datatypes for use in settings extensions"""
 
 __all__ = ['ResourcePath', 'UserDataPath', 'SoundFile', 'AccountSoundFile']
 

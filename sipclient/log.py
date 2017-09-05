@@ -1,7 +1,5 @@
 
-"""
-Logging support for SIP SIMPLE Client.
-"""
+"""Logging support for SIP SIMPLE Client"""
 
 __all__ = ["Logger"]
 

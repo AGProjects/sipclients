@@ -1,7 +1,5 @@
 
-"""
-SIP SIMPLE Client settings extensions.
-"""
+"""SIP SIMPLE Client settings extensions"""
 
 __all__ = ['SIPSimpleSettingsExtension']
 

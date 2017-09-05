@@ -1,7 +1,5 @@
 
-"""
-SIP SIMPLE Client configuration.
-"""
+"""SIP SIMPLE Client configuration"""
 
 __all__ = ['config_directory']
 
