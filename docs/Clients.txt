@@ -2,7 +2,7 @@
 SIP Clients
 -----------
 
-To test SIP SIMPLE client SDK (http://sipsimpleclient.com), a set of command
+To test SIP SIMPLE client SDK (http://sipsimpleclient.org), a set of command
 line tools are provided by this package for setting up Audio, Instant
 Messaging (IM) and File Transfer sessions, Publish and Subscribe for
 presence or other events.
@@ -41,5 +41,5 @@ The following SIP clients are available:
  * xcap-rls-services - Manage the content of a rls-services XCAP document
 
 For detailed information about how to setup and use the command line tools
-go to http://sipsimpleclient.com/wiki/SipTesting
+go to http://sipsimpleclient.org/projects/sipsimpleclient/wiki/SipTesting
 

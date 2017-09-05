@@ -14,6 +14,6 @@ Depends: ${python:Depends}, ${misc:Depends}, libavahi-compat-libdnssd1, python-a
 Conflicts: sipsimple-cli
 Description: SIP SIMPLE Command Line Clients
  This package contains Command Line Clients for testing SIP SIMPLE client
- SDK from http://sipsimpleclient.com. They demonstrate the SDK capabilities
+ SDK from http://sipsimpleclient.org. They demonstrate the SDK capabilities
  and can be used as examples or for testing purposes.
 
