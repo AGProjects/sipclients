@@ -1,3 +1,19 @@
+sipclients (3.2.1) unstable; urgency=medium
+
+  * Updated outdated website links
+  * Moved copyright and licensing info from source files into LICENSE
+  * Changed license from LGPL to GPL-3+ and updated license files
+  * Adjusted some module docstrings
+  * Removed no longer necessary future import
+  * Removed spurious whitespace
+  * Removed unnecessary .PHONY targets
+  * Added dh-python build dependency
+  * Removed no longer necessary pycompat and pyversions debian files
+  * Updated installation instructions
+  * Updated copyright years
+
+ -- Dan Pascu <dan@ag-projects.com>  Sat, 06 Oct 2018 12:29:31 +0300
+
 sipclients (3.1.0) unstable; urgency=medium
 
   * Raised python-sipsimple version dependency
