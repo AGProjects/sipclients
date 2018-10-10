@@ -469,7 +469,7 @@ class SIPAudioApplication(SIPApplication):
                 return
             session = self.active_session
             audio_stream = self.active_session.streams[0]
-            if audio_stream.recording_active:
+            if audio_stream.recorder is not None:
                 audio_stream.stop_recording()
             else:
                 direction = session.direction

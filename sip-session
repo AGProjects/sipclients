@@ -1760,7 +1760,7 @@ class SIPSessionApplication(SIPApplication):
         audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
         if audio_stream is not None:
             if state == 'toggle':
-                new_state = not audio_stream.recording_active
+                new_state = audio_stream.recorder is None
             elif state == 'on':
                 new_state = True
             elif state == 'off':
