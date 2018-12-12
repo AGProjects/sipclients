@@ -1,3 +1,9 @@
+sipclients (3.3.0) unstable; urgency=medium
+
+  * Adjusted scripts for API change
+
+ -- Dan Pascu <dan@ag-projects.com>  Wed, 12 Dec 2018 07:24:59 +0200
+
 sipclients (3.2.1) unstable; urgency=medium
 
   * Updated outdated website links
