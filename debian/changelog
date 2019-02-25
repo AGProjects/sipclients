@@ -1,3 +1,9 @@
+sipclients (3.4.0) unstable; urgency=medium
+
+  * Synchronized with python-sipsimple 3.4.0
+
+ -- Dan Pascu <dan@ag-projects.com>  Mon, 25 Feb 2019 13:26:11 +0200
+
 sipclients (3.3.0) unstable; urgency=medium
 
   * Adjusted scripts for API change
