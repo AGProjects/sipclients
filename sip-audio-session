@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python2
 
 import atexit
 import os
@@ -964,4 +964,3 @@ if __name__ == '__main__':
     sleep(0.1)
 
     sys.exit(0 if application.success else 1)
-

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python2
 
 import datetime
 import os
@@ -618,5 +618,3 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         sys.exit(return_code)
-
-
