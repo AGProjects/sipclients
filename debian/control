@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Dan Pascu <dan@ag-projects.com>
 Uploaders: Adrian Georgescu <ag@ag-projects.com>
 Build-Depends: debhelper (>= 11), dh-python, python (>= 2.7)
-Standards-Version: 3.9.8
+Standards-Version: 4.5.0
 Homepage: http://sipsimpleclient.org
 
 Package: sipclients
