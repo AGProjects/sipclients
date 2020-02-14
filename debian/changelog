@@ -1,3 +1,20 @@
+sipclients (3.5.0) unstable; urgency=medium
+
+  * Pass command line arguments from build_inplace to setup.py
+  * Cleanup after build_inplace
+  * Removed commented out variable in debian rules
+  * Explicitly use python2 in shebang lines
+  * Refactored setup.py for PEP-8 compliance
+  * Simplified MANIFEST.in
+  * Split debian dependencies one per line
+  * Increased debian compatibility level to 11
+  * Increased debian standards version to 4.5.0
+  * Updated minimum versions for debian dependencies
+  * Use pybuild as the debian build system
+  * Updated copyright years
+
+ -- Dan Pascu <dan@ag-projects.com>  Fri, 14 Feb 2020 14:20:48 +0200
+
 sipclients (3.4.0) unstable; urgency=medium
 
   * Synchronized with python-sipsimple 3.4.0
