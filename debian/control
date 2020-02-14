@@ -12,10 +12,10 @@ Section: net
 Architecture: all
 Depends: ${python:Depends}, ${misc:Depends},
          libavahi-compat-libdnssd1,
-         python-application (>= 1.2.8),
+         python-application (>= 2.8.0),
          python-eventlib,
          python-lxml,
-         python-sipsimple (>= 3.1.0),
+         python-sipsimple (>= 3.5.0),
          python-twisted-core,
          python-zope.interface
 Conflicts: sipsimple-cli
