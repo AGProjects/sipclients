@@ -574,6 +574,22 @@ class SIPAudioApplication(SIPApplication):
         self.output.put('DNS lookup failed: %s\n' % notification.data.error)
         self.stop()
 
+    def auto_answer_allowed(self, uri):
+
+       if not self.options.auto_answer_uris:
+           self.output.put('Auto answer allowed for %s\n' % uri)
+           return True
+
+       uri = uri.split(":")[1]
+       auto_answer_uris = self.options.auto_answer_uris.split(",")
+
+       if uri in auto_answer_uris:
+           self.output.put('Auto answer allowed for %s\n' % uri)
+           return True
+
+       self.output.put('Auto answer denied for %s\n' % uri)
+       return False
+
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
         for stream in notification.data.streams:
@@ -584,7 +600,7 @@ class SIPAudioApplication(SIPApplication):
             return
         notification_center = NotificationCenter()
         notification_center.add_observer(self, sender=session)
-        if self.options.auto_answer_interval is not None:
+        if self.options.auto_answer_interval is not None and self.auto_answer_allowed(str(session.remote_identity.uri)):
             if self.options.auto_answer_interval == 0:
                 session.accept([stream for stream in session.proposed_streams if stream.type == 'audio'])
                 return
@@ -942,6 +958,7 @@ if __name__ == '__main__':
     parser.add_option('-S', '--disable-sound', action='store_true', dest='disable_sound', default=False, help='Disables initializing the sound card.')
     parser.set_default('auto_answer_interval', None)
     parser.add_option('--auto-answer', action='callback', callback=parse_handle_call_option, callback_args=('auto_answer_interval',), help='Interval after which to answer an incoming session (disabled by default). If the option is specified but the interval is not, it defaults to 0 (accept the session as soon as it starts ringing).', metavar='[INTERVAL]')
+    parser.add_option('-u', '--auto-answer-uris', type='string', dest='auto_answer_uris', default="", help='Optional list of SIP URIs for which auto-answer is allowed')
     parser.set_default('auto_hangup_interval', None)
     parser.add_option('--auto-hangup', action='callback', callback=parse_handle_call_option, callback_args=('auto_hangup_interval',), help='Interval after which to hang up an established session (disabled by default). If the option is specified but the interval is not, it defaults to 0 (hangup the session as soon as it connects).', metavar='[INTERVAL]')
     parser.add_option('-b', '--batch', action='store_true', dest='batch_mode', default=False, help='Run the program in batch mode: reading input from the console is disabled and the option --auto-answer is implied. This is particularly useful when running this script in a non-interactive environment.')
@@ -955,8 +972,7 @@ if __name__ == '__main__':
     if options.batch_mode:
         options.auto_answer_interval = options.auto_answer_interval or 0
 
-    target = args[0] if args else None
-
+    target = args[0] if args and not options.auto_answer_uris else None
 
     application = SIPAudioApplication()
     application.start(target, options)
@@ -966,3 +982,4 @@ if __name__ == '__main__':
     sleep(0.1)
 
     sys.exit(0 if application.success else 1)
+
