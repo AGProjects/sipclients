@@ -315,6 +315,8 @@ class SIPAudioApplication(SIPApplication):
                 lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
 
     def _NH_SIPApplicationWillEnd(self, notification):
+        if isinstance(self.account, Account):
+            self.account.sip.register = False
         self.ip_address_monitor.stop()
 
     def _NH_SIPApplicationDidEnd(self, notification):
