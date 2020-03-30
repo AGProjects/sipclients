@@ -148,6 +148,8 @@ class SIPAudioApplication(SIPApplication):
         self.ignore_local_hold = False
         self.ignore_local_unhold = False
 
+        self.batch_mode = False
+
     def _write(self, message):
         if isinstance(message, unicode):
             message = message.encode(sys.getfilesystemencoding())
@@ -162,7 +164,8 @@ class SIPAudioApplication(SIPApplication):
         
         self.options = options
         self.target = target
-        self.input = InputThread() if not options.batch_mode else None
+        self.batch_mode = options.batch_mode
+        self.input = InputThread() if not self.batch_mode else None
         self.output = EventQueue(self._write)
         self.logger = Logger(sip_to_stdout=options.trace_sip, pjsip_to_stdout=options.trace_pjsip, notifications_to_stdout=options.trace_notifications)
         
@@ -270,7 +273,8 @@ class SIPAudioApplication(SIPApplication):
         else:
             self.output.put('Using audio alert device: %s\n' % self.alert_audio_mixer.output_device)
 
-        self.print_help()
+        if not self.batch_mode:
+            self.print_help()
 
         inbound_ringtone = self.account.sounds.audio_inbound.sound_file if self.account.sounds.audio_inbound is not None else None
         outbound_ringtone = settings.sounds.audio_outbound
