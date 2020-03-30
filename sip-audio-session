@@ -636,15 +636,16 @@ class SIPAudioApplication(SIPApplication):
 
     def _NH_SIPSessionDidFail(self, notification):
         session = notification.sender
-        if not self.incoming_sessions and session.direction == 'incoming':
+        if session.direction == 'incoming' and session in self.incoming_sessions:
             if self.wave_inbound_ringtone:
                 self.wave_inbound_ringtone.stop()
             self.tone_ringtone.stop()
         elif session.direction == 'outgoing':
             if self.wave_outbound_ringtone:
                 self.wave_outbound_ringtone.stop()
-        if notification.data.failure_reason == 'user request' or notification.data.failure_reason == 'Call completed elsewhere' and notification.data.code == 487:
-            self.output.put('Audio session cancelled: %s\n' % notification.data.failure_reason)
+
+        if notification.data.failure_reason == 'Call completed elsewhere' or notification.data.code == 487:
+            self.output.put('Audio session cancelled\n')
             if session is self.outgoing_session:
                 self.stop()
             if session in self.incoming_sessions:
