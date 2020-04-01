@@ -4,6 +4,7 @@ import atexit
 import os
 import platform
 import select
+import shutil
 import signal
 import sys
 import termios
@@ -19,6 +20,7 @@ from application import log
 from application.notification import NotificationCenter, NotificationData
 from application.process import process
 from application.python.queue import EventQueue
+from application.system import makedirs
 from twisted.internet import reactor
 
 from sipsimple.account import Account, AccountManager, BonjourAccount
@@ -118,7 +120,25 @@ class RTPStatisticsThread(Thread):
         self.stopped = True
 
 
+class CancelThread(Thread):
+    def __init__(self, application):
+        Thread.__init__(self)
+        self.setDaemon(True)
+        self.application = application
+        self.stopped = False
+
+    def run(self):
+        while not self.stopped:
+            self.application.end_session_if_needed()
+            sleep(1)
+
+    def stop(self):
+        self.stopped = True
+
+
 class SIPAudioApplication(SIPApplication):
+    spool_dir = "/var/spool/sipclients/sessions"
+
     def __init__(self):
         self.account = None
         self.options = None
@@ -151,6 +171,8 @@ class SIPAudioApplication(SIPApplication):
         self.ignore_local_unhold = False
 
         self.batch_mode = False
+        self.stop_call_thread = None
+        self.session_spool_dir = None
 
     def _write(self, message):
         if isinstance(message, unicode):
@@ -170,6 +192,9 @@ class SIPAudioApplication(SIPApplication):
         self.input = InputThread() if not self.batch_mode else None
         self.output = EventQueue(self._write)
         self.logger = Logger(sip_to_stdout=options.trace_sip, pjsip_to_stdout=options.trace_pjsip, notifications_to_stdout=options.trace_notifications)
+        
+        if options.spool_dir:
+            self.spool_dir = options.spool_dir
         
         notification_center.add_observer(self, sender=self)
         notification_center.add_observer(self, sender=self.input)
@@ -194,6 +219,11 @@ class SIPAudioApplication(SIPApplication):
             self.output.put("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.\n")
             self.output.stop()
 
+        try:
+            makedirs(self.spool_dir)
+        except Exception as e:
+            log.error('Failed to create spool directory at {directory}: {exception!s}'.format(directory=self.spool_dir, exception=e))
+        
     def print_help(self):
         message  = 'Available control keys:\n'
         message += '  s: toggle SIP trace on the console\n'
@@ -232,11 +262,13 @@ class SIPAudioApplication(SIPApplication):
                 self.output.put('More than one account exists which matches %s: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in possible_accounts))))
                 self.output.stop()
                 self.stop()
+                self.end_cancel_thread()
                 return
             elif len(possible_accounts) == 0:
                 self.output.put('No enabled account that matches %s was found. Available and enabled accounts: %s\n' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))))
                 self.output.stop()
                 self.stop()
+                self.end_cancel_thread()
                 return
             else:
                 self.account = possible_accounts[0]
@@ -244,7 +276,6 @@ class SIPAudioApplication(SIPApplication):
         if isinstance(self.account, Account) and self.target is None:
             self.account.sip.register = True
         self.output.put('Using account %s\n' % self.account.id)
-
         
         self.logger.start()
         if settings.logs.trace_sip and self.logger._siptrace_filename is not None:
@@ -258,6 +289,11 @@ class SIPAudioApplication(SIPApplication):
             settings.audio.input_device = None
             settings.audio.output_device = None
             settings.audio.alert_device = None
+
+        if self.options.enable_default_devices:
+            settings.audio.input_device = 'system_default'
+            settings.audio.output_device = 'system_default'
+            settings.audio.alert_device = 'system_default'
 
     def _NH_SIPApplicationDidStart(self, notification):
         engine = Engine()
@@ -300,6 +336,7 @@ class SIPAudioApplication(SIPApplication):
             if isinstance(self.account, BonjourAccount) and '@' not in self.target:
                 self.output.put('Bonjour mode requires a host in the destination address\n')
                 self.stop()
+                self.end_cancel_thread()
                 return
             if '@' not in self.target:
                 self.target = '%s@%s' % (self.target, self.account.id.domain)
@@ -323,7 +360,20 @@ class SIPAudioApplication(SIPApplication):
                     uri = SIPURI(host=self.account.id.domain)
                 else:
                     uri = self.target
+
+                self.session_spool_dir = self.spool_dir + "/" + (self.options.external_id or str(uuid.uuid1()))
+
                 lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
+
+                try:
+                    makedirs(self.session_spool_dir)
+                except Exception as e:
+                    log.error('Failed to create session spool directory at {directory}: {exception!s}'.format(directory=self.session_spool_dir, exception=e))
+                else:    
+                    if self.stop_call_thread is None:
+                        self.stop_call_thread = CancelThread(self)
+                        self.stop_call_thread.start()
+                    self.output.put("To stop the call: touch %s/stop\n" % self.session_spool_dir)
 
     def _NH_SIPApplicationWillEnd(self, notification):
         if isinstance(self.account, Account):
@@ -354,6 +404,7 @@ class SIPAudioApplication(SIPApplication):
                 self.outgoing_session.end()
             else:
                 self.stop()
+                self.end_cancel_thread()
         elif notification.data.input == '?':
             self.print_help()
         elif notification.data.input in ('y', 'n') and self.incoming_sessions:
@@ -577,6 +628,10 @@ class SIPAudioApplication(SIPApplication):
     def _NH_DNSLookupDidSucceed(self, notification):
         notification_center = NotificationCenter()
         
+        if self.end_session_if_needed():
+            self.stop()
+            self.end_cancel_thread()
+        
         self.outgoing_session = session = Session(self.account)
         notification_center.add_observer(self, sender=session)
         session.connect(ToHeader(self.target), routes=notification.data.result, streams=[MediaStreamRegistry.AudioStream()])
@@ -584,9 +639,9 @@ class SIPAudioApplication(SIPApplication):
     def _NH_DNSLookupDidFail(self, notification):
         self.output.put('DNS lookup failed: %s\n' % notification.data.error)
         self.stop()
+        self.end_cancel_thread()
 
     def auto_answer_allowed(self, uri):
-
        if not self.options.auto_answer_uris:
            self.output.put('Auto answer allowed for %s\n' % uri)
            return True
@@ -609,6 +664,19 @@ class SIPAudioApplication(SIPApplication):
         else:
             session.reject(415)
             return
+
+        self.session_spool_dir = self.spool_dir + "/" + str(uuid.uuid1())
+
+        try:
+            makedirs(self.session_spool_dir)
+        except Exception as e:
+            log.error('Failed to create session spool directory at {directory}: {exception!s}'.format(directory=self.session_spool_dir, exception=e))
+        else:    
+            if self.stop_call_thread is None:
+                self.stop_call_thread = CancelThread(self)
+                self.stop_call_thread.start()
+            self.output.put("To stop the call: touch %s/stop\n" % self.session_spool_dir)
+
         notification_center = NotificationCenter()
         notification_center.add_observer(self, sender=session)
         if self.options.auto_answer_interval is not None and self.auto_answer_allowed(str(session.remote_identity.uri)):
@@ -641,7 +709,9 @@ class SIPAudioApplication(SIPApplication):
             remote_identity = '"%s" <%s>' % (session.remote_identity.display_name, remote_identity)
         self.output.put("Initiating SIP audio session from '%s' to '%s' via %s...\n" % (local_identity, remote_identity, session.route))
 
+
     def _NH_SIPSessionGotRingIndication(self, notification):
+
         if self.wave_outbound_ringtone:
             self.wave_outbound_ringtone.start()
 
@@ -659,14 +729,20 @@ class SIPAudioApplication(SIPApplication):
             self.output.put('Audio session cancelled\n')
             if session is self.outgoing_session:
                 self.stop()
+                self.end_cancel_thread()
             if session in self.incoming_sessions:
                 self.incoming_sessions.remove(session)
         elif notification.data.failure_reason == 'user request':
             self.output.put('Audio session rejected by user (%d %s)\n' % (notification.data.code, notification.data.reason))
             if notification.sender is self.outgoing_session:
                 self.stop()
+                self.end_cancel_thread()
         else:
             self.output.put('Audio session failed: %s\n' % notification.data.failure_reason)
+            if session is self.outgoing_session:
+               self.stop()
+               self.end_cancel_thread()
+        
         if id(session) in self.answer_timers:
             timer = self.answer_timers[id(session)]
             if timer.active():
@@ -682,6 +758,7 @@ class SIPAudioApplication(SIPApplication):
         self.success = False
 
     def _NH_SIPSessionWillStart(self, notification):
+
         session = notification.sender
         if session.direction == 'incoming':
             if self.wave_inbound_ringtone:
@@ -696,6 +773,7 @@ class SIPAudioApplication(SIPApplication):
             if timer.active():
                 timer.cancel()
             del self.answer_timers[id(session)]
+
 
     def _NH_SIPSessionDidStart(self, notification):
         notification_center = NotificationCenter()
@@ -740,6 +818,7 @@ class SIPAudioApplication(SIPApplication):
                 timer = reactor.callLater(self.options.auto_hangup_interval, session.end)
                 self.hangup_timers[id(session)] = timer
 
+
     def _NH_SIPSessionWillEnd(self, notification):
         notification_center = NotificationCenter()
 
@@ -755,7 +834,41 @@ class SIPAudioApplication(SIPApplication):
         self.voice_audio_bridge.add(hangup_tone)
         hangup_tone.start()
 
+    def end_session_if_needed(self):
+        if not self.session_spool_dir:
+            return False
+
+        stop_call_file = self.session_spool_dir + "/stop"
+
+        if stop_call_file and os.path.exists(stop_call_file):
+            if self.active_session is not None:
+                self.output.put('Ending audio session...\n')
+                self.active_session.end()
+            elif self.outgoing_session is not None:
+                self.outgoing_session.end()
+            elif self.incoming_sessions:
+                session = self.incoming_sessions.pop(0)
+                session.reject()
+            return True
+
+        return False
+
+    def end_cancel_thread(self):
+        if self.stop_call_thread is not None:
+            self.stop_call_thread.stop()
+            self.stop_call_thread = None
+
+        if self.session_spool_dir:
+            try:
+                shutil.rmtree(self.session_spool_dir)
+            except OSError:
+                pass
+
+        self.session_spool_dir = None
+        
     def _NH_SIPSessionDidEnd(self, notification):
+        self.end_cancel_thread()
+
         session = notification.sender
         if session is not self.active_session:
             identity = str(session.remote_identity.uri)
@@ -795,12 +908,14 @@ class SIPAudioApplication(SIPApplication):
 
         if session is self.outgoing_session:
             self.stop()
+            self.end_cancel_thread()
             
         on_hold_streams = [stream for stream in chain(*(session.streams for session in self.started_sessions)) if stream.on_hold]
         if not on_hold_streams and self.hold_tone.is_active:
             self.hold_tone.stop()
 
         self.success = True
+
 
     def _NH_SIPSessionDidChangeHoldState(self, notification):
         session = notification.sender
@@ -971,18 +1086,14 @@ if __name__ == '__main__':
     parser.set_default('auto_answer_interval', None)
     parser.add_option('--auto-answer', action='callback', callback=parse_handle_call_option, callback_args=('auto_answer_interval',), help='Interval after which to answer an incoming session (disabled by default). If the option is specified but the interval is not, it defaults to 0 (accept the session as soon as it starts ringing).', metavar='[INTERVAL]')
     parser.add_option('-u', '--auto-answer-uris', type='string', dest='auto_answer_uris', default="", help='Optional list of SIP URIs for which auto-answer is allowed')
+    parser.add_option('-i', '--external-id', type='string', dest='external_id', help='id used for call control from external application')
+    parser.add_option('-v', '--spool-dir', type='string', dest='spool_dir', default='/var/spool/sipclients/sessions', help='Spool dir for call control from external applications, default is /var/spool/sipclients/sessions')
+    parser.add_option('-t', '--enable-default-devices',  action='store_true', dest='enable_default_devices', help='Use default audio devices')
     parser.set_default('auto_hangup_interval', None)
     parser.add_option('--auto-hangup', action='callback', callback=parse_handle_call_option, callback_args=('auto_hangup_interval',), help='Interval after which to hang up an established session (disabled by default). If the option is specified but the interval is not, it defaults to 0 (hangup the session as soon as it connects).', metavar='[INTERVAL]')
     parser.add_option('-b', '--batch', action='store_true', dest='batch_mode', default=False, help='Run the program in batch mode: reading input from the console is disabled and the option --auto-answer is implied. This is particularly useful when running this script in a non-interactive environment.')
-    parser.add_option('-D', '--daemonize', action='store_true', dest='daemonize', default=False, help='Enable running this program as a deamon. This option implies --disable-sound, --auto-answer and --batch.')
+    parser.add_option('-d', '--daemonize', action='store_true', dest='daemonize', default=False, help='Enable running this program as a deamon.')
     options, args = parser.parse_args()
-
-    if options.daemonize:
-        options.auto_answer_interval = options.auto_answer_interval or 0
-        options.disable_sound = True
-        options.batch_mode = True
-    if options.batch_mode:
-        options.auto_answer_interval = options.auto_answer_interval or 0
 
     target = args[0] if args and not options.auto_answer_uris else None
 
