@@ -6,6 +6,8 @@ import select
 import signal
 import sys
 import termios
+import uuid
+import platform
 
 from datetime import datetime
 from itertools import chain
@@ -213,6 +215,11 @@ class SIPAudioApplication(SIPApplication):
         account_manager = AccountManager()
         notification_center = NotificationCenter()
         settings = SIPSimpleSettings()
+
+        if 'armv7' in platform.platform() and settings.audio.echo_canceller.enabled:
+            self.output.put("Disable echo canceller on ARM architecture\n")
+            settings.audio.echo_canceller.enabled = False
+            settings.save()
 
         for account in account_manager.iter_accounts():
             if isinstance(account, Account):
