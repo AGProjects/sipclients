@@ -2,12 +2,12 @@
 
 import atexit
 import os
+import platform
 import select
 import signal
 import sys
 import termios
 import uuid
-import platform
 
 from datetime import datetime
 from itertools import chain
