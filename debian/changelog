@@ -1,3 +1,15 @@
+sipclients (3.5.1) unstable; urgency=medium
+
+  * Added posibility to start and end audio calls from external applications
+  * Disable audio echo cancellation for arm7 architecture
+  * Fixed starting publish presence application
+  * Don't display key usage in batch mode for sip-audio-session
+  * Fixed cancelling of incoming sessions for sip-audio-session
+  * Added access list for auto answer for sip-audio-session
+  * Unregister on exit for for sip-audio-session
+
+ -- Adrian Georgescu <ag@ag-projects.com>  Mon, 06 Apr 2020 23:51:43 +0200
+
 sipclients (3.5.0) unstable; urgency=medium
 
   * Pass command line arguments from build_inplace to setup.py
