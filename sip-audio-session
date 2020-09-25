@@ -299,6 +299,9 @@ class SIPAudioApplication(SIPApplication):
         engine = Engine()
         settings = SIPSimpleSettings()
 
+        engine.trace_sip = self.logger.sip_to_stdout or settings.logs.trace_sip
+        engine.log_level = settings.logs.pjsip_level if (self.logger.pjsip_to_stdout or settings.logs.trace_pjsip) else 0
+        
         self.ip_address_monitor.start()
 
         self.output.put('Available audio input devices: %s\n' % ', '.join(['None', 'system_default'] + sorted(engine.input_devices)))
