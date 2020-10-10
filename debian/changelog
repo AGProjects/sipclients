@@ -1,3 +1,9 @@
+sipclients (3.5.2) unstable; urgency=medium
+
+  * Fixed enabling tracing for audio session at start
+
+ -- Adrian Georgescu <ag@ag-projects.com>  Sat, 10 Oct 2020 10:48:25 +0200
+
 sipclients (3.5.1) unstable; urgency=medium
 
   * Added posibility to start and end audio calls from external applications
