@@ -587,7 +587,6 @@ class PublicationApplication(object):
             tls_ca_file=os.path.expanduser(settings.tls.ca_list) if settings.tls.ca_list else None,
             tls_cert_file=os.path.expanduser(self.account.tls.certificate) if self.account.tls.certificate else None,
             tls_privkey_file=os.path.expanduser(self.account.tls.certificate) if self.account.tls.certificate else None,
-            tls_timeout=settings.tls.timeout,
             user_agent=settings.user_agent,
             sample_rate=settings.audio.sample_rate,
             rtp_port_range=(settings.rtp.port_range.start, settings.rtp.port_range.end),
@@ -618,7 +617,7 @@ class PublicationApplication(object):
 
         self.device = Device(''.join(chr(random.randint(97, 122)) for i in xrange(8)))
         self.device.device_id = device_id
-        self.device.notes.add(DMNote('Powered by %s' % engine.user_agent, lang='en'))
+        self.device.notes.add(DMNote('Powered by %s' % settings.user_agent, lang='en'))
         self.device.timestamp = DeviceTimestamp(datetime.now())
         self.pidf.add(self.device)
 
