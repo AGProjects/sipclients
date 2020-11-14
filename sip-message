@@ -22,6 +22,7 @@ from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
 from sipsimple.configuration import ConfigurationError
 from sipsimple.configuration.settings import SIPSimpleSettings
+from sipsimple.core import Engine
 from sipsimple.lookup import DNSLookup
 from sipsimple.storage import FileStorage
 
@@ -180,6 +181,11 @@ class SIPMessageApplication(SIPApplication):
     def _NH_SIPApplicationDidStart(self, notification):
         notification_center = NotificationCenter()
         settings = SIPSimpleSettings()
+
+        engine = Engine()
+
+        engine.trace_sip = self.logger.sip_to_stdout or settings.logs.trace_sip
+        engine.log_level = settings.logs.pjsip_level if (self.logger.pjsip_to_stdout or settings.logs.trace_pjsip) else 0
 
         self.ip_address_monitor.start()
 
