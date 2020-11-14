@@ -149,6 +149,10 @@ class SIPMessageApplication(SIPApplication):
         for account in account_manager.iter_accounts():
             if isinstance(account, Account):
                 account.sip.register = False
+                account.presence.enabled = False
+                account.xcap.enabled = False
+                account.message_summary.enabled = False
+
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -165,8 +169,12 @@ class SIPMessageApplication(SIPApplication):
                 return
             else:
                 self.account = possible_accounts[0]
+
         if isinstance(self.account, Account) and self.target is None:
             self.account.sip.register = True
+            self.account.presence.enabled = False
+            self.account.xcap.enabled = False
+            self.account.message_summary.enabled = False
             notification_center.add_observer(self, sender=self.account)
         self.output.put('Using account %s\n' % self.account.id)
 
