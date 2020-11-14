@@ -1,3 +1,14 @@
+sipclients (3.5.3) unstable; urgency=medium
+
+  * Disable presence and xcap for sip-session
+  * Disable presence and xcap for sip-audio-session
+  * Disabled presence and xcap for sip-message
+  * Enable sip trace for sip-message
+  * Fixed publish presence script
+  * Added sip and pjsip trace for sip-register
+
+ -- Adrian Georgescu <ag@ag-projects.com>  Sat, 14 Nov 2020 12:22:11 +0100
+
 sipclients (3.5.2) unstable; urgency=medium
 
   * Fixed enabling tracing for audio session at start
