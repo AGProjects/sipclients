@@ -959,6 +959,10 @@ class SIPSessionApplication(SIPApplication):
         for account in account_manager.iter_accounts():
             if isinstance(account, Account):
                 account.sip.register = False
+                account.presence.enabled = False
+                account.xcap.enabled = False
+                account.message_summary.enabled = False
+
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -976,9 +980,12 @@ class SIPSessionApplication(SIPApplication):
         notification_center.add_observer(self, sender=self.account)
         if isinstance(self.account, Account):
             self.account.sip.register = True
+            self.account.presence.enabled = False
+            self.account.xcap.enabled = False
+            self.account.message_summary.enabled = False
+
         send_notice('Using account %s' % self.account.id, bold=False)
         ui.prompt = Prompt(self.account.id, foreground='default')
-
 
         self.logger.start()
         if settings.logs.trace_sip and self.logger._siptrace_filename is not None:
