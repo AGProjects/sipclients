@@ -369,7 +369,7 @@ class SubscriptionApplication(object):
         for child in xcap_diff:
             if isinstance(child, Document):
                 message.append('  %s document %s for AUID %s changed' % ('Global' if child.selector.globaltree is not None else "User's %s" % child.selector.userstree, child.selector.document, child.selector.auid))
-                message.append('    URL: %s/%s' % (xcap_diff.xcap_root, child.selector))
+                message.append('    URL: %s' % child.selector)
                 if child.previous_etag:
                     message.append('    Previous ETag: %s' % child.previous_etag)
                 if child.new_etag:
