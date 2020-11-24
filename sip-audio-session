@@ -202,6 +202,7 @@ class SIPAudioApplication(SIPApplication):
         notification_center.add_observer(self, name='RTPStreamDidChangeRTPParameters')
         notification_center.add_observer(self, name='RTPStreamICENegotiationDidSucceed')
         notification_center.add_observer(self, name='RTPStreamICENegotiationDidFail')
+        notification_center.add_observer(self, name='DNSLookupDidSucceed')
 
         if self.input:
             self.input.start()
@@ -639,6 +640,9 @@ class SIPAudioApplication(SIPApplication):
     def _NH_DNSLookupDidSucceed(self, notification):
         notification_center = NotificationCenter()
         
+        result_text = ', '.join(('%s:%s (%s)' % (result.address, result.port, result.transport.upper()) for result in notification.data.result))
+        self.output.put(u"\nDNS lookup for %s succeeded: %s\n" % (self.target.host, result_text))
+
         if self.end_session_if_needed():
             self.stop()
             self.end_cancel_thread()
