@@ -151,7 +151,6 @@ class CancelThread(Thread):
 
 
 class SIPAudioApplication(SIPApplication):
-    spool_dir = "/var/spool/sipclients/sessions"
 
     def __init__(self):
         self.account = None
@@ -208,9 +207,6 @@ class SIPAudioApplication(SIPApplication):
         self.output = EventQueue(self._write)
         self.logger = Logger(sip_to_stdout=options.trace_sip, pjsip_to_stdout=options.trace_pjsip, notifications_to_stdout=options.trace_notifications)
         
-        if options.spool_dir:
-            self.spool_dir = options.spool_dir
-        
         notification_center.add_observer(self, sender=self)
         notification_center.add_observer(self, sender=self.input)
         notification_center.add_observer(self, name='SIPSessionNewIncoming')
@@ -227,17 +223,28 @@ class SIPAudioApplication(SIPApplication):
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
+        
+        self.config_directory = options.config_directory or config_directory
+        
         try:
-            SIPApplication.start(self, FileStorage(options.config_directory or config_directory))
+            self.output.put("Using config directory: %s\n" % self.config_directory)
+            SIPApplication.start(self, FileStorage(self.config_directory))
         except ConfigurationError, e:
             self.output.put("Failed to load sipclient's configuration: %s\n" % str(e))
             self.output.put("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.\n")
             self.output.stop()
 
+        if options.spool_dir:
+            self.spool_dir = options.spool_dir
+        else:
+            self.spool_dir = "%s/spool/sesssions" % self.config_directory
+        
         try:
             makedirs(self.spool_dir)
         except Exception as e:
             log.error('Failed to create spool directory at {directory}: {exception!s}'.format(directory=self.spool_dir, exception=e))
+        else:
+            self.output.put("Using spool directory %s\n" % self.spool_dir)
         
     def print_help(self):
         message  = 'Available control keys:\n'
@@ -1155,7 +1162,7 @@ if __name__ == '__main__':
     parser.add_option('--auto-answer', action='callback', callback=parse_handle_call_option, callback_args=('auto_answer_interval',), help='Interval after which to answer an incoming session (disabled by default). If the option is specified but the interval is not, it defaults to 0 (accept the session as soon as it starts ringing).', metavar='[INTERVAL]')
     parser.add_option('-u', '--auto-answer-uris', type='string', dest='auto_answer_uris', default="", help='Optional list of SIP URIs for which auto-answer is allowed')
     parser.add_option('-i', '--external-id', type='string', dest='external_id', help='id used for call control from external application')
-    parser.add_option('-v', '--spool-dir', type='string', dest='spool_dir', default='/var/spool/sipclients/sessions', help='Spool dir for call control from external applications, default is /var/spool/sipclients/sessions')
+    parser.add_option('-v', '--spool-dir', type='string', dest='spool_dir', default=None, help='Spool dir for call control from external applications, default is /var/spool/sipclients/sessions')
     parser.add_option('-t', '--enable-default-devices',  action='store_true', dest='enable_default_devices', help='Use default audio devices')
     parser.add_option('-V', '--enable-video',  action='store_true', dest='enable_video', default=False, help='Enable video if camera is available')
     parser.set_default('auto_hangup_interval', None)
