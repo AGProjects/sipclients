@@ -202,7 +202,6 @@ class SIPAudioApplication(SIPApplication):
         notification_center.add_observer(self, name='RTPStreamDidChangeRTPParameters')
         notification_center.add_observer(self, name='RTPStreamICENegotiationDidSucceed')
         notification_center.add_observer(self, name='RTPStreamICENegotiationDidFail')
-        notification_center.add_observer(self, name='DNSLookupDidSucceed')
 
         if self.input:
             self.input.start()
