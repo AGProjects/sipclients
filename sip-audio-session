@@ -951,18 +951,20 @@ class SIPAudioApplication(SIPApplication):
             self.output.put('Session %s ended by %s party\n' % (identity, notification.data.originator))
         else:
             self.output.put('Session %s ended due to error: %s\n' % (identity, notification.data.end_reason))
-        duration = session.end_time - session.start_time
-        seconds = duration.seconds if duration.microseconds < 500000 else duration.seconds+1
-        minutes, seconds = seconds / 60, seconds % 60
-        hours, minutes = minutes / 60, minutes % 60
-        hours += duration.days*24
-        if not minutes and not hours:
-            duration_text = '%d seconds' % seconds
-        elif not hours:
-            duration_text = '%02d:%02d' % (minutes, seconds)
-        else:
-            duration_text = '%02d:%02d:%02d' % (hours, minutes, seconds)
-        self.output.put('Session duration was %s\n' % duration_text)
+
+        if session.end_time and session.start_time:
+            duration = session.end_time - session.start_time
+            seconds = duration.seconds if duration.microseconds < 500000 else duration.seconds+1
+            minutes, seconds = seconds / 60, seconds % 60
+            hours, minutes = minutes / 60, minutes % 60
+            hours += duration.days*24
+            if not minutes and not hours:
+                duration_text = '%d seconds' % seconds
+            elif not hours:
+                duration_text = '%02d:%02d' % (minutes, seconds)
+            else:
+                duration_text = '%02d:%02d:%02d' % (hours, minutes, seconds)
+            self.output.put('Session duration was %s\n' % duration_text)
         
         self.started_sessions.remove(session)
         if session is self.active_session:
