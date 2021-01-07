@@ -9,6 +9,7 @@ from datetime import datetime
 from itertools import chain
 from lxml import html
 from optparse import OptionParser
+from otr import OTRState, SMPStatus
 from threading import Event, Thread
 from time import sleep
 
@@ -878,6 +879,12 @@ class SIPSessionApplication(SIPApplication):
         self.ignore_local_hold = False
         self.ignore_local_unhold = False
 
+        self.smp_verification_question = 'What is the ZRTP authentication string'
+        self.smp_verifified_using_zrtp = False
+        self.smp_verification_delay = 0
+        self.smp_verification_tries = 5
+        self.smp_secret = None
+
     def start(self, target, options):
         notification_center = NotificationCenter()
         ui = UI()
@@ -1348,6 +1355,84 @@ class SIPSessionApplication(SIPApplication):
     def _NH_AudioStreamDidStopRecordingAudio(self, notification):
         send_notice('Stopped recording audio to %s' % notification.data.filename)
 
+    def _NH_ChatStreamSMPVerificationDidStart(self, notification):
+        send_notice('OTR SMP verification started')
+        data = notification.data
+        session = self.active_session
+        if data.originator == 'remote':
+            send_notice("OTR SMP verification requested by remote")
+            if data.question == self.smp_verification_question:
+                try:
+                    audio_stream = next(stream for stream in session.streams if stream.type=='audio' and stream.encryption.type=='ZRTP' and stream.encryption.active and stream.encryption.zrtp.verified)
+                except StopIteration:
+                    stream.encryption.smp_abort()
+                else:
+                    send_notice("OTR SMP verification done automatically using ZRTP SAS")
+                    stream.encryption.smp_answer(audio_stream.encryption.zrtp.sas)
+                    self.smp_verifified_using_zrtp = True
+            else:
+                send_notice('OTR verification question: %s' % data.question)
+                self._update_prompt()
+        else:
+            try:
+                audio_stream = next(stream for stream in session.streams if stream.type=='audio' and stream.encryption.type=='ZRTP' and stream.encryption.active and stream.encryption.zrtp.verified)
+            except StopIteration:
+                audio_stream = None
+
+        if audio_stream:
+            self.stream.encryption.smp_verify(audio_stream.encryption.zrtp.sas, question=self.smp_verification_question)
+            send_notice("Performing OTR SMP verification using ZRTP SAS...")
+            self._update_prompt()
+
+    def _NH_ChatStreamSMPVerificationDidNotStart(self, notification):
+        send_notice('OTR SMP verification did not start')
+
+    def _NH_ChatStreamSMPVerificationDidEnd(self, notification):
+        data = notification.data
+        stream = notification.sender
+        if data.status is SMPStatus.Success:
+            send_notice("OTR SMP verification succeeded")
+            stream.encryption.verified = True
+            self._update_prompt()
+        elif data.status is SMPStatus.Interrupted:
+            send_notice("OTR SMP verification aborted: %s" % data.reason)
+        elif data.status is SMPStatus.ProtocolError:
+            send_notice("OTR SMP verification error: %s" % data.reason)
+            if data.reason == 'startup collision':
+                self.smp_verification_tries -= 1
+                self.smp_verification_delay *= 2
+                if self.smp_verification_tries > 0:
+                    # TODO verify later
+                    pass
+
+    def _NH_ChatStreamOTRError(self, notification):
+        send_notice("Chat encryption error: %s", notification.data.error)
+
+    def _NH_ChatStreamOTRVerifiedStateChanged(self, notification):
+        self._update_prompt()
+
+    def _NH_ChatStreamOTREncryptionStateChanged(self, notification):
+        data = notification.data
+        stream = notification.sender
+        if data.new_state is OTRState.Encrypted:
+            local_fingerprint = stream.encryption.key_fingerprint.encode('hex').upper()
+            remote_fingerprint = stream.encryption.peer_fingerprint.encode('hex').upper()
+            send_notice("Chat encryption activated using OTR protocol")
+            send_notice("OTR local fingerprint %s" % local_fingerprint)
+            send_notice("OTR remote fingerprint %s" % remote_fingerprint)
+
+            if stream.encryption.verified:
+                send_notice("OTR remote fingerprint has been verified")
+            else:
+                send_notice("OTR remote fingerprint has not yet been verified")
+
+        elif data.new_state is OTRState.Finished:
+            send_notice("Chat encryption deactivated")
+        elif data.new_state is OTRState.Plaintext:
+            send_notice("Chat encryption deactivated")
+
+        self._update_prompt()
+
     def _NH_ChatStreamGotMessage(self, notification):
         if not notification.data.message.content_type.startswith("text/"):
             return
@@ -1420,6 +1505,7 @@ class SIPSessionApplication(SIPApplication):
 
     # command handlers
     #
+
 
     def _CH_call(self, target):
         if self.outgoing_session is not None:
@@ -1785,6 +1871,61 @@ class SIPSessionApplication(SIPApplication):
             else:
                 audio_stream.stop_recording()
 
+    def _CH_otr(self):
+        if self.active_session is None:
+            return
+
+        chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
+        
+        if chat_stream is None:
+            return
+        if chat_stream.encryption.active:
+            send_notice("Chat encryption will stop")
+            chat_stream.encryption.stop()
+        else:
+            send_notice("Chat encryption will start")
+            chat_stream.encryption.start()
+
+    def _CH_smp_s(self, *args):
+        secret = " ".join(args) if args else None
+        self.smp_secret = secret
+        send_notice("OTR SMP answer set to: %s" % secret)
+
+    def _CH_smp_a(self, *args):
+        if self.active_session is None:
+            return
+
+        chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
+        
+        if chat_stream is None:
+            return
+            
+        answer = " ".join(args) if args else None
+
+        if answer:
+            chat_stream.encryption.smp_answer(answer)
+
+    def _CH_smp_q(self, *args):
+        if self.active_session is None:
+            return
+
+        chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
+        
+        if chat_stream is None:
+            return
+            
+        if self.smp_secret is None:
+            send_notice("Please set the SMP secret answer using /smp_s command")
+            return
+         
+        question = " ".join(args) if args else None
+
+        if question:
+            send_notice("OTR SMP verification question will be asked: %s" % question)
+            chat_stream.encryption.verified = False
+            chat_stream.encryption.smp_verify(self.smp_secret, question=question)
+            self._update_prompt()
+
     def _CH_hold(self, state='toggle'):
         if self.active_session is not None:
             if state == 'toggle':
@@ -1906,6 +2047,10 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /dtmf {0-9|*|#|A-D}...: send DTMF tones (ctrl-x 0-9|*|#|A-D)')
         lines.append('  /record [on|off]: toggle/set audio recording (ctrl-x r)')
         lines.append('  /hold [on|off]: hold/unhold (ctrl-x SPACE)')
+        lines.append('  /otr: toggle OTR encryption for the chat stream')
+        lines.append('  /smp_a answer: Answer OTR verification question')
+        lines.append('  /smp_s secret: Set the secret answer for the OTR verification question')
+        lines.append('  /smp_q question: Ask OTR verification question')
         lines.append('  /add {chat|audio}: add a stream to the current session')
         lines.append('  /remove {chat|audio}: remove a stream from the current session')
         lines.append('  /add_participant {user@domain}: add the specified user to the conference')
@@ -1918,15 +2063,18 @@ class SIPSessionApplication(SIPApplication):
         ui = UI()
         session = self.active_session
         if session is None:
-            ui.prompt = Prompt(self.account.id, foreground='default')
+            ui.prompt = Prompt('%s@%s' % (self.account.id.username, self.account.id.domain), foreground='default')
         else:
+            info = 'not encrypted'
             identity = '%s@%s' % (session.remote_identity.uri.user, session.remote_identity.uri.host)
             if session.remote_identity.display_name:
                 identity = '%s (%s)' % (session.remote_identity.display_name, identity)
             streams = '/'.join(stream.type.capitalize() for stream in session.streams)
-            if not streams:
-                streams = 'Session without media'
-            ui.prompt = Prompt('%s to %s' % (streams, identity), foreground='darkred')
+            chat_stream = next((stream for stream in session.streams if stream.type == 'chat'), None)
+            if chat_stream and chat_stream.encryption.active:
+                info = 'OTR encrypted verified' if chat_stream.encryption.verified else 'OTR encrypted NOT verified'
+
+            ui.prompt = Prompt('%s to %s (%s)' % (streams, identity, info), foreground='darkred')
 
 
 def parse_handle_call_option(option, opt_str, value, parser, name):
@@ -1945,6 +2093,7 @@ def parse_handle_call_option(option, opt_str, value, parser, name):
             else:
                 del parser.rargs[0]
     setattr(parser.values, name, value)
+
 
 if __name__ == '__main__':
     description = '%prog is a command-line client for handling multiple audio, chat and file-transfer sessions'
