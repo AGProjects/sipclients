@@ -1,3 +1,16 @@
+sipclients (3.5.4) unstable; urgency=medium
+
+  * Added ZRTP management for sip-session script
+  * Added OTR management for sip-session chat stream
+  * Preserve command history between restarts for sip-session script
+  * Capture error when SIP session did not start yet
+  * Moved spool directory under home user config folder
+  * Added video support to sip-audio-session script
+  * Print DNS lookup results for sip-message and sip-audio-session
+  * Fixed printing XCAP document url
+
+ -- Adrian Georgescu <ag@ag-projects.com>  Fri, 08 Jan 2021 16:02:11 +0100
+
 sipclients (3.5.3) unstable; urgency=medium
 
   * Disable presence and xcap for sip-session
