@@ -200,8 +200,7 @@ class OutgoingCallInitializer(object):
                                                                                                      stream.remote_rtp_candidate.type.lower()))
                 else:
                     send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
-                if stream.encryption.active:
-                    send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
+                
         if session.remote_user_agent is not None:
             send_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
 
@@ -879,7 +878,7 @@ class SIPSessionApplication(SIPApplication):
         self.ignore_local_hold = False
         self.ignore_local_unhold = False
 
-        self.smp_verification_question = 'What is the ZRTP authentication string'
+        self.smp_verification_question = 'What is the ZRTP authentication string?'
         self.smp_verifified_using_zrtp = False
         self.smp_verification_delay = 0
         self.smp_verification_tries = 5
@@ -1345,6 +1344,24 @@ class SIPSessionApplication(SIPApplication):
         wave_player.start()
         send_notice('Got DMTF %s' % notification.data.digit)
 
+    def _NH_RTPStreamZRTPVerifiedStateChanged(self, notification):
+        self._update_prompt()
+
+    def _NH_RTPStreamZRTPPeerNameChanged(self, notification):
+        self._update_prompt()
+
+    def _NH_RTPStreamDidEnableEncryption(self, notification):
+        stream = notification.sender
+        send_notice("%s encryption activated using %s (%s)" % (stream.type.title(), stream.encryption.type, stream.encryption.cipher))
+
+        if stream.encryption.type == 'ZRTP':
+            peer_name = stream.encryption.zrtp.peer_name if stream.encryption.zrtp.peer_name else None
+            send_notice("ZRTP secret is %s" % stream.encryption.zrtp.sas)
+            send_notice("ZRTP peer name is %s, use /zrtp_name command to change it" % (peer_name or 'not set'))
+            send_notice("ZRTP peer is %s, use /zrtp_verified command to toggle it" % ('verified' if stream.encryption.zrtp.verified else 'not verified'))
+
+        self._update_prompt()
+
     def _NH_RTPStreamDidChangeRTPParameters(self, notification):
         stream = notification.sender
         send_notice('Audio RTP parameters changed:')
@@ -1363,33 +1380,33 @@ class SIPSessionApplication(SIPApplication):
         send_notice('OTR verification started', bold=False)
         data = notification.data
         session = self.active_session
+        stream = notification.sender
         if data.originator == 'remote':
-            send_notice("OTR verification requested by remote, reply using /otr_answer")
             if data.question == self.smp_verification_question:
                 try:
                     audio_stream = next(stream for stream in session.streams if stream.type=='audio' and stream.encryption.type=='ZRTP' and stream.encryption.active and stream.encryption.zrtp.verified)
                 except StopIteration:
                     stream.encryption.smp_abort()
                 else:
-                    send_notice("OTR verification done automatically using ZRTP SAS", bold=False)
+                    send_notice("OTR verification requested by remote and replied automatically using ZRTP SAS", bold=False)
                     stream.encryption.smp_answer(audio_stream.encryption.zrtp.sas)
                     self.smp_verifified_using_zrtp = True
             else:
+                send_notice("OTR verification requested by remote, reply using /otr_answer")
                 send_notice('OTR verification question: %s' % data.question)
                 self._update_prompt()
         else:
             try:
                 audio_stream = next(stream for stream in session.streams if stream.type=='audio' and stream.encryption.type=='ZRTP' and stream.encryption.active and stream.encryption.zrtp.verified)
             except StopIteration:
-                audio_stream = None
-
-            if audio_stream:
-                self.stream.encryption.smp_verify(audio_stream.encryption.zrtp.sas, question=self.smp_verification_question)
-                send_notice("Performing OTR verification using ZRTP SAS...", bold=False)
+                pass
+            else:
+                stream.encryption.smp_verify(audio_stream.encryption.zrtp.sas, question=self.smp_verification_question)
+                send_notice("OTR verification performed automatically using ZRTP SAS...", bold=False)
                 self._update_prompt()
 
     def _NH_ChatStreamSMPVerificationDidNotStart(self, notification):
-        send_notice('OTR verification did not start')
+        pass
 
     def _NH_ChatStreamSMPVerificationDidEnd(self, notification):
         data = notification.data
@@ -1921,7 +1938,8 @@ class SIPSessionApplication(SIPApplication):
             return
 
         chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
-        
+        audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
+                
         if chat_stream is None:
             send_notice("OTR functions can be used only during active chat sessions")
             return
@@ -1933,15 +1951,37 @@ class SIPSessionApplication(SIPApplication):
         question = " ".join(args) if args else None
 
         if question:
-            peer_fingerprint = chat_stream.encryption.peer_fingerprint.encode('hex')
-            try:
-                chat_stream.encryption.otr_cache.trusted_peers.remove(peer_fingerprint)
-            except KeyError:
-                pass
-
-            self._update_prompt()
-            send_notice("OTR verification question asked: %s" % question)
+            send_notice("OTR SMP verification question will be asked: %s" % question)
+            chat_stream.encryption.verified = False
             chat_stream.encryption.smp_verify(self.smp_secret, question=question)
+
+    def _CH_zrtp_verified(self):
+        if self.active_session is None:
+            send_notice("ZRTP functions can be used only during active audio sessions")
+            return
+
+        audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
+        
+        if audio_stream is None:
+            send_notice("ZRTP functions can be used only during active audio sessions")
+            return
+            
+        audio_stream.encryption.zrtp.verified = not audio_stream.encryption.zrtp.verified
+
+    def _CH_zrtp_name(self, *args):
+        if self.active_session is None:
+            send_notice("ZRTP functions can be used only during active audio sessions")
+            return
+
+        audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
+        
+        if audio_stream is None:
+            send_notice("ZRTP functions can be used only during active audio sessions")
+            return
+            
+        peer_name = " ".join(args) if args else None
+        audio_stream.encryption.zrtp.peer_name = peer_name
+        
 
     def _CH_hold(self, state='toggle'):
         if self.active_session is not None:
@@ -2064,10 +2104,12 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /dtmf {0-9|*|#|A-D}...: send DTMF tones (ctrl-x 0-9|*|#|A-D)')
         lines.append('  /record [on|off]: toggle/set audio recording (ctrl-x r)')
         lines.append('  /hold [on|off]: hold/unhold (ctrl-x SPACE)')
+        lines.append('  /zrtp_verified: toggle verified flag for ZRTP peer (both parties must do it)')
+        lines.append('  /zrtp_name name: set name for ZRTP peer')
         lines.append('  /otr: toggle OTR encryption for the chat stream')
-        lines.append('  /otr_answer answer: Answer OTR verification question')
+        lines.append('  /otr_answer answer: Answer OTR verification question using SMP protocol')
         lines.append('  /otr_secret [secret]: show or set OTR secret')
-        lines.append('  /otr_question question: Ask OTR verification question')
+        lines.append('  /otr_question question: Ask OTR verification question using SMP protocol')
         lines.append('  /add {chat|audio}: add a stream to the current session')
         lines.append('  /remove {chat|audio}: remove a stream from the current session')
         lines.append('  /add_participant {user@domain}: add the specified user to the conference')
@@ -2082,16 +2124,32 @@ class SIPSessionApplication(SIPApplication):
         if session is None:
             ui.prompt = Prompt('%s@%s' % (self.account.id.username, self.account.id.domain), foreground='default')
         else:
-            info = 'not encrypted'
+            info = []
             identity = '%s@%s' % (session.remote_identity.uri.user, session.remote_identity.uri.host)
             if session.remote_identity.display_name:
                 identity = '%s (%s)' % (session.remote_identity.display_name, identity)
             streams = '/'.join(stream.type.capitalize() for stream in session.streams)
             chat_stream = next((stream for stream in session.streams if stream.type == 'chat'), None)
+            audio_stream = next((stream for stream in session.streams if stream.type == 'audio'), None)
+        
             if chat_stream and chat_stream.encryption.active:
-                info = 'OTR encrypted verified' if chat_stream.encryption.verified else 'OTR encrypted NOT verified'
+                info.append('Chat encrypted verified' if chat_stream.encryption.verified else 'Chat encrypted NOT verified')
 
-            ui.prompt = Prompt('%s to %s (%s)' % (streams, identity, info), foreground='darkred')
+            if audio_stream and audio_stream.encryption.active:
+                if audio_stream.encryption.zrtp:
+                    if audio_stream.encryption.zrtp.verified:
+                        if audio_stream.encryption.zrtp.peer_name:
+                            info.append('Audio encrypted verified with %s' % audio_stream.encryption.zrtp.peer_name)
+                        else:
+                            info.append('Audio encrypted verified')
+                    else:
+                        info.append('Audio encrypted NOT verified')
+                else:
+                    info.append('Audio encrypted NOT verified')
+            
+            if not info:
+                info = ['not encrypted']
+            ui.prompt = Prompt('%s to %s (%s)' % (streams, identity, ", ".join(info)), foreground='darkred')
 
 
 def parse_handle_call_option(option, opt_str, value, parser, name):
