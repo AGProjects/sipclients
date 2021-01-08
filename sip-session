@@ -887,7 +887,11 @@ class SIPSessionApplication(SIPApplication):
 
     def start(self, target, options):
         notification_center = NotificationCenter()
+
         ui = UI()
+
+        history_file = os.path.join(config_directory, 'input.history')
+        ui.input.add_history(history_file)
 
         self.options = options
         self.target = target

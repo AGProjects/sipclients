@@ -8,6 +8,7 @@ an actual implementation.
 __all__ = ["RichText", "CompoundRichText", "Prompt", "Question", "UI"]
 
 import atexit
+import cPickle as pickle
 import fcntl
 import os
 import re
@@ -16,13 +17,13 @@ import signal
 import struct
 import sys
 import termios
-
 from collections import deque
 from threading import RLock, Thread
 
 from application.python.decorator import decorator, preserve_signature
 from application.python.queue import EventQueue
 from application.python.types import Singleton
+from application.system import openfile
 from application.notification import NotificationCenter, NotificationData
 
 
@@ -137,6 +138,7 @@ class Question(RichText):
 
 class Input(object):
     def __init__(self):
+        self.history_file = None
         self.lines = []
         self.current_line_index = None
         self.cursor_position = None
@@ -154,6 +156,17 @@ class Input(object):
         self.lines[self.current_line_index] = value
     current_line = property(_get_current_line, _set_current_line)
     del _get_current_line, _set_current_line
+    
+    def add_history(self, history_file):
+        self.history_file = history_file
+        try:
+            self.lines = pickle.load(open(history_file, 'rb'))
+        except (IOError, TypeError, EOFError):
+            self.lines = []
+
+    def save_history(self):
+        with openfile(self.history_file, 'wb', permissions=0600) as history_file:
+            pickle.dump(self.lines, history_file)
 
     def add_line(self, text=''):
         self.lines.append(text)
@@ -243,7 +256,7 @@ class UI(Thread):
     # public functions
     #
 
-    def __init__(self):
+    def __init__(self, history_file=None):
         Thread.__init__(self, target=self._run, name='UI-Thread')
         self.setDaemon(True)
 
@@ -259,6 +272,7 @@ class UI(Thread):
         self.cursor_y = None
         self.displaying_question = False
         self.input = Input()
+        self.input.add_history(history_file)
         self.last_window_size = None
         self.prompt_y = None
         self.questions = deque()
@@ -332,6 +346,7 @@ class UI(Thread):
             if isinstance(sys.stderr, TTYFileWrapper):
                 sys.stderr.send_to_file()
             self._raw_write('\n\x1b[2K')
+            self.input.save_history()
 
     def write(self, text):
         self.writelines([text])
