@@ -866,7 +866,7 @@ class SIPSessionApplication(SIPApplication):
         self.sessions_with_proposals = set()
         self.hangup_timers = {}
         self.neighbours = {}
-        self.registration_succeeded = False
+        self.registration_succeeded = {}
         self.stopped_event = Event()
 
         self.ip_address_monitor = IPAddressMonitor()
@@ -943,6 +943,7 @@ class SIPSessionApplication(SIPApplication):
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
+
         try:
             SIPApplication.start(self, FileStorage(options.config_directory or config_directory))
         except ConfigurationError, e:
@@ -966,13 +967,6 @@ class SIPSessionApplication(SIPApplication):
         settings.logs.trace_notifications = self.options.trace_notifications
         settings.save()
 
-        for account in account_manager.iter_accounts():
-            if isinstance(account, Account):
-                account.sip.register = False
-                account.presence.enabled = False
-                account.xcap.enabled = False
-                account.message_summary.enabled = False
-
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -987,12 +981,19 @@ class SIPSessionApplication(SIPApplication):
                 return
             else:
                 self.account = possible_accounts[0]
-        notification_center.add_observer(self, sender=self.account)
+
+        for account in account_manager.iter_accounts():
+            if isinstance(account, Account):
+                account.sip.register = False
+                account.presence.enabled = False
+                account.presence.enabled = False
+                account.xcap.enabled = False
+                account.message_summary.enabled = False
+
         if isinstance(self.account, Account):
             self.account.sip.register = True
-            self.account.presence.enabled = False
-            self.account.xcap.enabled = False
-            self.account.message_summary.enabled = False
+
+        notification_center.add_observer(self, sender=self.account)
 
         send_notice('Using account %s' % self.account.id, bold=False)
         ui.prompt = Prompt(self.account.id, foreground='default')
@@ -1031,6 +1032,7 @@ class SIPSessionApplication(SIPApplication):
             call_initializer.start()
 
     def _NH_SIPApplicationWillEnd(self, notification):
+        send_notice('Application will end')
         self.ip_address_monitor.stop()
 
     def _NH_SIPApplicationDidEnd(self, notification):
@@ -1074,31 +1076,43 @@ class SIPSessionApplication(SIPApplication):
         send_notice(lines)
 
     def _NH_SIPAccountRegistrationDidSucceed(self, notification):
-        if self.registration_succeeded:
-            return
+        account = notification.sender
+
+        try:
+            s = self.registration_succeeded[account.id]
+        except KeyError:
+            pass
+        else:
+            if s:
+                send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
+                return
+
         contact_header = notification.data.contact_header
         contact_header_list = notification.data.contact_header_list
         expires = notification.data.expires
         registrar = notification.data.registrar
-        lines = ['%s Registered contact "%s" for sip:%s at %s:%d;transport=%s (expires in %d seconds).' % (datetime.now().replace(microsecond=0), contact_header.uri, self.account.id, registrar.address, registrar.port, registrar.transport, expires)]
+
+        lines = ['%s Registered contact "%s" for %s at %s:%d;transport=%s (expires in %d seconds).' % (datetime.now().replace(microsecond=0), contact_header.uri, self.account.id, registrar.address, registrar.port, registrar.transport, expires)]
         if len(contact_header_list) > 1:
             lines.append('Other registered contacts:')
             lines.extend('  %s (expires in %s seconds)' % (str(other_contact_header.uri), other_contact_header.expires) for other_contact_header in contact_header_list if other_contact_header.uri != notification.data.contact_header.uri)
-        account = notification.sender
+
         if account.contact.public_gruu is not None:
             lines.append('Public GRUU: %s' % account.contact.public_gruu)
+
         if account.contact.temporary_gruu is not None:
             lines.append('Temporary GRUU: %s' % account.contact.temporary_gruu)
+
         send_notice(lines)
 
-        self.registration_succeeded = True
+        self.registration_succeeded[account.id] = True
 
     def _NH_SIPAccountRegistrationDidFail(self, notification):
-        send_notice('%s Failed to register contact for sip:%s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.retry_after))
-        self.registration_succeeded = False
+        send_notice('%s Failed to register contact for %s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.retry_after))
+        self.registration_succeeded[notification.sender.id] = False
 
     def _NH_SIPAccountRegistrationDidEnd(self, notification):
-        send_notice('%s Registration ended.' % datetime.now().replace(microsecond=0))
+        send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
 
     def _NH_BonjourAccountRegistrationDidSucceed(self, notification):
         send_notice('%s Registered Bonjour contact "%s"' % (datetime.now().replace(microsecond=0), notification.data.name))
@@ -1107,7 +1121,7 @@ class SIPSessionApplication(SIPApplication):
         send_notice('%s Failed to register Bonjour contact: %s' % (datetime.now().replace(microsecond=0), notification.data.reason))
 
     def _NH_BonjourAccountRegistrationDidEnd(self, notification):
-        send_notice('%s Registration ended.' % datetime.now().replace(microsecond=0))
+        send_notice('%s Bonjour registration ended' % datetime.now().replace(microsecond=0))
 
     def _NH_BonjourAccountDidAddNeighbour(self, notification):
         neighbour, record = notification.data.neighbour, notification.data.record
@@ -1892,6 +1906,41 @@ class SIPSessionApplication(SIPApplication):
             else:
                 audio_stream.stop_recording()
 
+
+    def _CH_account(self, *args):
+        account_manager = AccountManager()
+        if not args or args[0] == 'list':
+            send_notice('Accounts available: %s' % ", ".join(account.id for account in account_manager.iter_accounts() if account != self.account))
+        elif args and args[0] == 'register':
+            self.account.sip.register = not self.account.sip.register
+            self.registration_succeeded[self.account.id] = False
+            self.account.save()
+
+        elif args:
+            new_account = args[0]
+            possible_accounts = [account for account in account_manager.iter_accounts() if new_account in account.id and account.enabled]
+            if len(possible_accounts) > 1:
+                send_notice('More than one account exists which matches %s: %s' % (new_account, ', '.join(sorted(account.id for account in possible_accounts))), bold=False)
+            elif len(possible_accounts) == 0:
+                send_notice('No enabled account which matches %s was found. Available and enabled accounts: %s' % (self.options.account, ', '.join(sorted(possible_accounts))), bold=False)
+            elif possible_accounts[0] != self.account:
+                notification_center = NotificationCenter()
+                notification_center.remove_observer(self, sender=self.account)
+                self.account.sip.register = False
+                self.account.save()
+
+                self.registration_succeeded[self.account.id] = False
+
+                self.account = None
+
+                self.account = possible_accounts[0]
+                send_notice('Switching account to %s' % self.account.id)
+                notification_center.add_observer(self, sender=self.account)
+                self.account.sip.register = True
+                self.account.save()
+
+                self._update_prompt()
+
     def _CH_otr(self):
         if self.active_session is None:
             return
@@ -2082,6 +2131,7 @@ class SIPSessionApplication(SIPApplication):
     def _print_help(self):
         lines = []
         lines.append('General commands:')
+        lines.append('  /account [list|register|user@domain]: show accounts, toggle register or switch to another account')
         lines.append('  /call {user[@domain]}: call the specified user using audio and chat')
         lines.append('  /audio {user[@domain]} [+chat]: call the specified user using audio and possibly chat')
         lines.append('  /chat {user[@domain]} [+audio]: call the specified user using chat and possibly audio')
