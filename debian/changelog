@@ -1,3 +1,11 @@
+sipclients (3.5.5) unstable; urgency=medium
+
+  * Added sip2sip.info enrollment for sip-session script
+  * Enable usage of multiple accounts with sip-session
+  * Use environment set python2 path
+
+ -- Adrian Georgescu <ag@ag-projects.com>  Sun, 10 Jan 2021 16:29:04 +0100
+
 sipclients (3.5.4) unstable; urgency=medium
 
   * Added ZRTP management for sip-session script
