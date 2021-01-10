@@ -947,7 +947,7 @@ class SIPSessionApplication(SIPApplication):
         Account.register_extension(AccountExtension)
         BonjourAccount.register_extension(AccountExtension)
         SIPSimpleSettings.register_extension(SIPSimpleSettingsExtension)
-
+        
         try:
             SIPApplication.start(self, FileStorage(options.config_directory or config_directory))
         except ConfigurationError, e:
@@ -971,6 +971,15 @@ class SIPSessionApplication(SIPApplication):
         settings.logs.trace_notifications = self.options.trace_notifications
         settings.save()
 
+        for account in account_manager.iter_accounts():
+            if isinstance(account, Account):
+                account.sip.register = False
+                account.presence.enabled = False
+                account.xcap.enabled = False
+                account.message_summary.enabled = False
+
+            notification_center.add_observer(self, sender=account)
+
         if self.options.account is None:
             self.account = account_manager.default_account
         else:
@@ -986,18 +995,8 @@ class SIPSessionApplication(SIPApplication):
             else:
                 self.account = possible_accounts[0]
 
-        for account in account_manager.iter_accounts():
-            if isinstance(account, Account):
-                account.sip.register = False
-                account.presence.enabled = False
-                account.presence.enabled = False
-                account.xcap.enabled = False
-                account.message_summary.enabled = False
-
         if isinstance(self.account, Account):
             self.account.sip.register = True
-
-        notification_center.add_observer(self, sender=self.account)
 
         send_notice('Using account %s' % self.account.id, bold=False)
         ui.prompt = Prompt(self.account.id, foreground='default')
@@ -1095,37 +1094,43 @@ class SIPSessionApplication(SIPApplication):
         contact_header_list = notification.data.contact_header_list
         expires = notification.data.expires
         registrar = notification.data.registrar
-
-        lines = ['%s Registered contact "%s" for %s at %s:%d;transport=%s (expires in %d seconds).' % (datetime.now().replace(microsecond=0), contact_header.uri, self.account.id, registrar.address, registrar.port, registrar.transport, expires)]
+        now = datetime.now().replace(microsecond=0)
+        lines = ['%s Registered contact "%s" of %s at %s:%d;transport=%s for %d seconds' % (now, contact_header.uri, account.id, registrar.address, registrar.port, registrar.transport, expires)]
         if len(contact_header_list) > 1:
-            lines.append('Other registered contacts:')
-            lines.extend('  %s (expires in %s seconds)' % (str(other_contact_header.uri), other_contact_header.expires) for other_contact_header in contact_header_list if other_contact_header.uri != notification.data.contact_header.uri)
+            lines.append('%s Other registered contacts of %s:' % (now, account.id))
+            lines.extend('%s     %s of %s for %s seconds' % (now, str(other_contact_header.uri), account.id, other_contact_header.expires) for other_contact_header in contact_header_list if other_contact_header.uri != notification.data.contact_header.uri)
 
         if account.contact.public_gruu is not None:
-            lines.append('Public GRUU: %s' % account.contact.public_gruu)
+            lines.append('%s  Public GRUU: %s' % (now, account.contact.public_gruu))
 
         if account.contact.temporary_gruu is not None:
-            lines.append('Temporary GRUU: %s' % account.contact.temporary_gruu)
+            lines.append('%s  Temporary GRUU: %s' % (now, account.contact.temporary_gruu))
 
         send_notice(lines)
 
         self.registration_succeeded[account.id] = True
 
     def _NH_SIPAccountRegistrationDidFail(self, notification):
-        send_notice('%s Failed to register contact for %s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), self.account.id, notification.data.error, notification.data.retry_after))
+        account = notification.sender
+        
+        if self.active_session is None:
+            send_notice('%s Failed to register contact for %s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), account.id, notification.data.error, notification.data.retry_after))
         self.registration_succeeded[notification.sender.id] = False
 
     def _NH_SIPAccountRegistrationDidEnd(self, notification):
-        send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
+        account = notification.sender
+        send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), account.id))
 
     def _NH_BonjourAccountRegistrationDidSucceed(self, notification):
-        send_notice('%s Registered Bonjour contact "%s"' % (datetime.now().replace(microsecond=0), notification.data.name))
+        pass
+        #send_notice('%s Registered Bonjour contact "%s"' % (datetime.now().replace(microsecond=0), notification.data.name))
 
     def _NH_BonjourAccountRegistrationDidFail(self, notification):
         send_notice('%s Failed to register Bonjour contact: %s' % (datetime.now().replace(microsecond=0), notification.data.reason))
 
     def _NH_BonjourAccountRegistrationDidEnd(self, notification):
-        send_notice('%s Bonjour registration ended' % datetime.now().replace(microsecond=0))
+        pass
+        #send_notice('%s Bonjour registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
 
     def _NH_BonjourAccountDidAddNeighbour(self, notification):
         neighbour, record = notification.data.neighbour, notification.data.record
@@ -1915,11 +1920,13 @@ class SIPSessionApplication(SIPApplication):
         account_manager = AccountManager()
 
         if not args or args[0] == 'list':
-            send_notice('Accounts available: %s' % ", ".join(account.id for account in account_manager.iter_accounts() if account != self.account))
+            send_notice('Accounts available: %s' % ", ".join(account.id for account in account_manager.iter_accounts() if account != self.account and account.enabled))
 
         elif args and args[0] == 'register':
+            if not self.account.sip.register:
+                self.registration_succeeded[self.account.id] = False
+
             self.account.sip.register = not self.account.sip.register
-            self.registration_succeeded[self.account.id] = False
             self.account.save()
 
         elif args and args[0] == 'enroll':
@@ -1960,25 +1967,22 @@ class SIPSessionApplication(SIPApplication):
                 send_notice('More than one account exists which matches %s: %s' % (new_account, ', '.join(sorted(account.id for account in possible_accounts))), bold=False)
             elif len(possible_accounts) == 0:
                 send_notice('No enabled account which matches %s was found. Available and enabled accounts: %s' % (self.options.account, ', '.join(sorted(possible_accounts))), bold=False)
+            elif possible_accounts[0] == self.account:
+                send_notice('Same account selected')
             elif possible_accounts[0] != self.account:
                 notification_center = NotificationCenter()
-                notification_center.remove_observer(self, sender=self.account)
-                self.account.sip.register = False
-                self.account.save()
-
+                if isinstance(self.account, Account):
+                    self.account.sip.register = False
+                    self.account.save()
+                
                 self.registration_succeeded[self.account.id] = False
-
-                self.account = None
-
                 self.account = possible_accounts[0]
                 send_notice('Switching account to %s' % self.account.id)
-                notification_center.add_observer(self, sender=self.account)
-                self.account.sip.register = True
-
-                self.account.save()
-
+                if isinstance(self.account, Account):
+                    self.account.sip.register = True
+                    self.account.save()
+               
                 self._update_prompt()
-
 
     def enroll(self, username, password, email, display_name):
         settings = SIPSimpleSettings()
