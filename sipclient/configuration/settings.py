@@ -9,7 +9,8 @@ from sipsimple.configuration import Setting, SettingsGroup, SettingsObjectExtens
 from sipsimple.configuration.datatypes import Path
 from sipsimple.configuration.settings import AudioSettings, LogsSettings
 
-from sipclient.configuration.datatypes import SoundFile, UserDataPath
+
+from sipclient.configuration.datatypes import SoundFile, UserDataPath, HTTPURL
 
 
 class AudioSettingsExtension(AudioSettings):
@@ -30,6 +31,11 @@ class SoundsSettings(SettingsGroup):
     file_sent = Setting(type=SoundFile, default=SoundFile('sounds/file_sent.wav'), nillable=True)
 
 
+class EnrollmentSettings(SettingsGroup):
+    default_domain = Setting(type=str, default='sip2sip.info', nillable=False)
+    url = Setting(type=HTTPURL, default="https://blink.sipthor.net/enrollment.phtml", nillable=True)
+
+
 class SIPSimpleSettingsExtension(SettingsObjectExtension):
     user_data_directory = Setting(type=Path, default=Path(os.path.expanduser('~/.sipclient')))
     resources_directory = Setting(type=Path, default=None, nillable=True)
@@ -37,5 +43,5 @@ class SIPSimpleSettingsExtension(SettingsObjectExtension):
     audio = AudioSettingsExtension
     logs = LogsSettingsExtension
     sounds = SoundsSettings
-
+    enrollment = EnrollmentSettings
 

@@ -5,9 +5,10 @@ __all__ = ['ResourcePath', 'UserDataPath', 'SoundFile', 'AccountSoundFile']
 
 import os
 import sys
+import urlparse
 
-from application.python.descriptor import classproperty
-
+from application.python.descriptor import classproperty, WriteOnceAttribute
+from sipsimple.configuration.datatypes import Hostname
 
 ## Path datatypes
 
@@ -176,4 +177,36 @@ class AccountSoundFile(object):
         else:
             return u'%s,%d' % (self._sound_file.path, self._sound_file.volume)
 
+
+class HTTPURL(object):
+    url = WriteOnceAttribute()
+
+    def __init__(self, value):
+        url = urlparse.urlparse(value)
+        if url.scheme not in (u'http', u'https'):
+            raise ValueError(NSLocalizedString("Illegal HTTP URL scheme (http and https only): %s", "Preference option error") % url.scheme)
+        # check port and hostname
+        Hostname(url.hostname)
+        if url.port is not None:
+            if not (0 < url.port < 65536):
+                raise ValueError(NSLocalizedString("Illegal port value: %d", "Preference option error") % url.port)
+        self.url = url
+
+    def __getstate__(self):
+        return unicode(self.url.geturl())
+
+    def __setstate__(self, state):
+        self.__init__(state)
+
+    def __getitem__(self, index):
+        return self.url.__getitem__(index)
+
+    def __getattr__(self, attr):
+        if attr in ('scheme', 'netloc', 'path', 'params', 'query', 'fragment', 'username', 'password', 'hostname', 'port'):
+            return getattr(self.url, attr)
+        else:
+            raise AttributeError("'%s' object has no attribute '%s'" % (self.__class__.__name__, attr))
+
+    def __unicode__(self):
+        return unicode(self.url.geturl())
 

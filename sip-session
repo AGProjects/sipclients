@@ -4,8 +4,12 @@ import os
 import re
 import signal
 import sys
+import urllib
+import requests
 
+from collections import defaultdict
 from datetime import datetime
+from dateutil.tz import tzlocal
 from itertools import chain
 from lxml import html
 from optparse import OptionParser
@@ -1909,12 +1913,45 @@ class SIPSessionApplication(SIPApplication):
 
     def _CH_account(self, *args):
         account_manager = AccountManager()
+
         if not args or args[0] == 'list':
             send_notice('Accounts available: %s' % ", ".join(account.id for account in account_manager.iter_accounts() if account != self.account))
+
         elif args and args[0] == 'register':
             self.account.sip.register = not self.account.sip.register
             self.registration_succeeded[self.account.id] = False
             self.account.save()
+
+        elif args and args[0] == 'enroll':
+            settings = SIPSimpleSettings()
+            try:
+                username = args[1].strip()
+                password = args[2].strip()
+                email = args[3].strip()
+                display_name = " ".join(args[4:])
+
+                if not "@" in email:
+                    send_notice('Email address is not valid, must be user@domain')
+                    return
+                    
+                if not display_name:
+                    send_notice('Please specify a display name')
+                    return
+
+                sip_address = '%s@%s' % (username, settings.enrollment.default_domain)
+                if account_manager.has_account(sip_address):
+                    send_notice('Account %s is already defined' % sip_address)
+                    return
+            except IndexError:
+                send_notice('To enroll an account you must provide: username password email')
+                return
+            else:
+                data = self.enroll(username, password, email, display_name)
+
+                if data['error']:
+                    send_notice(data['error'])
+                else:
+                    send_notice('Account %s created' % data['sip_address'])
 
         elif args:
             new_account = args[0]
@@ -1937,9 +1974,69 @@ class SIPSessionApplication(SIPApplication):
                 send_notice('Switching account to %s' % self.account.id)
                 notification_center.add_observer(self, sender=self.account)
                 self.account.sip.register = True
+
                 self.account.save()
 
                 self._update_prompt()
+
+
+    def enroll(self, username, password, email, display_name):
+        settings = SIPSimpleSettings()
+
+
+        tzname = datetime.now(tzlocal()).tzname() or ""
+
+        post_data = {'password'     : password.encode("utf8"),
+                     'username'     : username.encode("utf8"),
+                     'email'        : email.encode("utf8"),
+                     'display_name' : display_name.encode("utf8"),
+                     'tzinfo'       : tzname }
+
+        return_data = {}
+
+        try:
+            r = requests.post(settings.enrollment.url, timeout=5, data=post_data)
+            settings = SIPSimpleSettings()
+            send_notice("Enrollment request sent to %s" % settings.enrollment.url)
+
+            if r.status_code == 200:
+                body = r.json()
+                if not body["success"]:
+                    return_data['error'] = "Enrollment failed: %s" % body["error_message"]
+                else:
+                    data = defaultdict(lambda: None, body)
+                    sip_address = data['sip_address']
+                    outbound_proxy = data['outbound_proxy']
+
+                    try:
+                        account = Account(sip_address)
+                    except ValueError as e:
+                        return_data['error'] = "Local account create error: %s" % str(e)
+                    else:
+                        account.auth.password = password
+                        account.sip.always_use_my_proxy = True
+                        account.sip.register = True
+                        account.rtp.srtp_encryption = 'opportunistic'
+                        account.nat_traversal.msrp_relay = data['msrp_relay']
+
+                        if data['outbound_proxy']:
+                            account.sip.outbound_proxy = data['outbound_proxy']
+
+                        if data['xcap_root']:
+                            account.xcap.xcap_root = data['xcap_root']
+                            account.xcap.enabled = True
+
+                        account.enabled = True
+                        account.save()
+                    
+                    return_data = data
+            else:
+                return_data['error'] = "Enrollment server error code %s" % r.status_code
+
+        except Exception as e:
+            return_data['error'] = "Enrollment exception: %s" % str(e)
+        
+        return return_data
 
     def _CH_otr(self):
         if self.active_session is None:
@@ -2131,7 +2228,7 @@ class SIPSessionApplication(SIPApplication):
     def _print_help(self):
         lines = []
         lines.append('General commands:')
-        lines.append('  /account [list|register|user@domain]: show accounts, toggle register or switch to another account')
+        lines.append('  /account [list|register|user@domain|enroll user password email display_name]: account management')
         lines.append('  /call {user[@domain]}: call the specified user using audio and chat')
         lines.append('  /audio {user[@domain]} [+chat]: call the specified user using audio and possibly chat')
         lines.append('  /chat {user[@domain]} [+audio]: call the specified user using chat and possibly audio')
