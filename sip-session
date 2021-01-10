@@ -1950,7 +1950,7 @@ class SIPSessionApplication(SIPApplication):
                     send_notice('Account %s is already defined' % sip_address)
                     return
             except IndexError:
-                send_notice('To enroll an account you must provide: username password email')
+                send_notice('To enroll an account you must provide: username password email display_name')
                 return
             else:
                 data = self.enroll(username, password, email, display_name)
