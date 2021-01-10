@@ -1970,23 +1970,29 @@ class SIPSessionApplication(SIPApplication):
             elif possible_accounts[0] == self.account:
                 send_notice('Same account selected')
             elif possible_accounts[0] != self.account:
-                notification_center = NotificationCenter()
-                if isinstance(self.account, Account):
-                    self.account.sip.register = False
-                    self.account.save()
-                
-                self.registration_succeeded[self.account.id] = False
-                self.account = possible_accounts[0]
-                send_notice('Switching account to %s' % self.account.id)
-                if isinstance(self.account, Account):
-                    self.account.sip.register = True
-                    self.account.save()
-               
-                self._update_prompt()
+                self.switch_account(possible_accounts[0])
+
+    def switch_account(self, account):
+        if isinstance(self.account, Account):
+            self.account.sip.register = False
+            self.account.save()
+        
+        self.registration_succeeded[self.account.id] = False
+
+        self.account = account
+        send_notice('Switching account to %s' % self.account.id)
+
+        notification_center = NotificationCenter()
+        notification_center.add_observer(self, sender=account)
+            
+        if isinstance(self.account, Account):
+            self.account.sip.register = True
+            self.account.save()
+       
+        self._update_prompt()
 
     def enroll(self, username, password, email, display_name):
         settings = SIPSimpleSettings()
-
 
         tzname = datetime.now(tzlocal()).tzname() or ""
 
@@ -2032,6 +2038,10 @@ class SIPSessionApplication(SIPApplication):
 
                         account.enabled = True
                         account.save()
+                        account_manager = AccountManager()
+                        account_manager.default_account = account
+
+                        self.switch_account(account)
                     
                     return_data = data
             else:
