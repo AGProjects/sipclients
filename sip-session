@@ -8,7 +8,7 @@ import urllib
 import requests
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.tz import tzlocal
 from itertools import chain
 from lxml import html
@@ -24,7 +24,7 @@ from eventlib import api
 from twisted.internet import reactor
 from zope.interface import implements
 
-from sipsimple.core import Engine, SIPCoreError, SIPURI, ToHeader
+from sipsimple.core import Engine, FromHeader, Message, RouteHeader, SIPCoreError, SIPURI, ToHeader
 
 from sipsimple.account import Account, AccountManager, BonjourAccount
 from sipsimple.application import SIPApplication
@@ -32,11 +32,14 @@ from sipsimple.audio import WavePlayer
 from sipsimple.configuration import ConfigurationError
 from sipsimple.configuration.settings import SIPSimpleSettings
 from sipsimple.lookup import DNSLookup
+from sipsimple.payloads.iscomposing import IsComposingMessage
 from sipsimple.session import IllegalStateError, Session
 from sipsimple.streams import MediaStreamRegistry
 from sipsimple.streams.msrp.filetransfer import FileSelector
+from sipsimple.streams.msrp.chat import CPIMPayload, CPIMParserError
 from sipsimple.storage import FileStorage
 from sipsimple.threading.green import run_in_green_thread
+from sipsimple.util import ISOTimestamp
 
 from sipclient.configuration import config_directory
 from sipclient.configuration.account import AccountExtension
@@ -95,6 +98,96 @@ class RTPStatisticsThread(Thread):
         self.stopped = True
 
 
+class OutgoingMessage(object):
+    implements(IObserver)
+
+    def __init__(self, account, target, message, msg_id):
+        self.account = account
+        self.target = target
+        self.message = message
+        self.msg_id = msg_id
+
+        self.remote_uri = None
+        self.routes = None
+
+    def start(self):
+        if '@' not in self.target:
+            self.target = '%s@%s' % (self.target, self.account.id.domain)
+
+        if not self.target.startswith('sip:') and not self.target.startswith('sips:'):
+            self.target = 'sip:' + self.target
+        try:
+            self.target = SIPURI.parse(self.target)
+        except SIPCoreError:
+            send_notice('Illegal SIP URI: %s' % self.target)
+        else:
+            if '.' not in self.target.host and not isinstance(self.account, BonjourAccount):
+                self.target.host = '%s.%s' % (self.target.host, self.account.id.domain)
+            
+            self.remote_uri = str(self.target).split(":")[1]
+            lookup = DNSLookup()
+            notification_center = NotificationCenter()
+            notification_center.add_observer(self, sender=lookup)
+            settings = SIPSimpleSettings()
+            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
+                uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
+            elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
+                uri = SIPURI(host=self.account.id.domain)
+            else:
+                uri = self.target
+
+            lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
+
+    def handle_notification(self, notification):
+        handler = getattr(self, '_NH_%s' % notification.name, Null)
+        handler(notification)
+
+    def _NH_DNSLookupDidSucceed(self, notification):
+        notification_center = NotificationCenter()
+        notification.center.remove_observer(self, sender=notification.sender)
+
+        self.routes = notification.data.result
+        self._send_message()
+
+    def _send_message(self):
+        notification_center = NotificationCenter()
+        if not self.routes:
+            send_notice('No more routes to try. Aborting.\n')
+            return
+
+        route = self.routes.pop(0)
+        identity = str(self.account.uri)
+
+        if self.account.display_name:
+            identity = '"%s" <%s>' % (self.account.display_name, identity)
+
+        message_request = Message(FromHeader(self.account.uri, self.account.display_name), ToHeader(self.target), RouteHeader(route.uri), 'text/plain', self.message, credentials=self.account.credentials)
+        notification_center.add_observer(self, sender=message_request)
+        #send_notice('%s Sending SMS to %s...' % (datetime.now().replace(microsecond=0), self.remote_uri))
+
+        message_request.send()
+
+    def _NH_DNSLookupDidFail(self, notification):
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self, sender=notification.sender)
+        send_notice('%s Message %d to %s failed: DNS lookup failed' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
+
+    def _NH_SIPMessageDidSucceed(self, notification):
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self, sender=notification.sender)
+        if notification.data.code == 202:
+            send_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri, notification.data.code ))
+        elif notification.data.code == 200:
+            send_notice('%s Message %s received by %s' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
+        else:
+            send_notice('%s Message %s received by %s (code %d)' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri, notification.data.code ))
+
+    def _NH_SIPMessageDidFail(self, notification):
+        notification_center = NotificationCenter()
+        notification_center.remove_observer(self, sender=notification.sender)
+        send_notice('%s Message %s to %s failed: %s (%d)' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri, notification.data.reason, notification.data.code))
+
+
 class OutgoingCallInitializer(object):
     implements(IObserver)
 
@@ -133,6 +226,8 @@ class OutgoingCallInitializer(object):
                 uri = SIPURI(host=self.account.id.domain)
             else:
                 uri = self.target
+
+            send_notice('DNS lookup for %s' % uri)
             lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
 
     def handle_notification(self, notification):
@@ -162,6 +257,7 @@ class OutgoingCallInitializer(object):
         if session.remote_identity.display_name:
             remote_identity = '"%s" <%s>' % (session.remote_identity.display_name, remote_identity)
         send_notice("Initiating SIP session from '%s' to '%s' via %s..." % (local_identity, remote_identity, session.route))
+        self.message_session_to = None
 
     def _NH_SIPSessionGotRingIndication(self, notification):
         settings = SIPSimpleSettings()
@@ -863,8 +959,11 @@ class SIPSessionApplication(SIPApplication):
         self.account = None
         self.options = None
         self.target = None
+        
+        self.msg_id = 1
 
         self.active_session = None
+        self.message_session_to = None
         self.outgoing_session = None
         self.connected_sessions = []
         self.sessions_with_proposals = set()
@@ -872,6 +971,7 @@ class SIPSessionApplication(SIPApplication):
         self.neighbours = {}
         self.registration_succeeded = {}
         self.stopped_event = Event()
+        self.received_message_ids = set()
 
         self.ip_address_monitor = IPAddressMonitor()
         self.logger = None
@@ -910,6 +1010,7 @@ class SIPSessionApplication(SIPApplication):
         notification_center.add_observer(self, name='RTPStreamDidChangeRTPParameters')
         notification_center.add_observer(self, name='RTPStreamICENegotiationDidSucceed')
         notification_center.add_observer(self, name='RTPStreamICENegotiationDidFail')
+        notification_center.add_observer(self, name='SIPEngineGotMessage')
 
         log.level.current = log.level.WARNING # get rid of twisted messages
         control_bindings={'s': 'trace sip',
@@ -1060,18 +1161,45 @@ class SIPSessionApplication(SIPApplication):
 
     def _NH_UIInputGotText(self, notification):
         msrp_chat = None
+        message = notification.data.text 
         if self.active_session is not None:
             msrp_chat = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
-        if msrp_chat is None:
-            send_notice('No active chat session')
-            return
-        msrp_chat.send_message(notification.data.text)
-        if msrp_chat.local_identity.display_name:
-            local_identity = msrp_chat.local_identity.display_name
+
+            if msrp_chat:
+                msrp_chat.send_message(message)
+
+                if msrp_chat.local_identity.display_name:
+                    local_identity = msrp_chat.local_identity.display_name
+                else:
+                    local_identity = str(msrp_chat.local_identity.uri)
+            else:
+                # compose SMS message
+                pass
+                
+        elif self.message_session_to:
+            # compose SMS message
+            settings = SIPSimpleSettings()
+            lookup = DNSLookup()
+            notification_center = NotificationCenter()
+            notification_center.add_observer(self, sender=lookup)
+            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
+                uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
+            elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
+                uri = SIPURI(host=self.account.id.domain)
+            else:
+                uri = self.message_session_to
+
+            local_identity = '%s@%s' % (self.account.id.username, self.account.id.domain)
+            msg = OutgoingMessage(self.account, self.message_session_to, message, self.msg_id)
+            msg.start()
+            message = message + ' (%s)' % self.msg_id
+            self.msg_id = self.msg_id + 1
         else:
-            local_identity = str(msrp_chat.local_identity.uri)
+            send_notice('No active chat or message session')
+            return
+
         ui = UI()
-        ui.write(RichText('%s> ' % local_identity, foreground='darkred') + notification.data.text)
+        ui.write(RichText('%s> ' % local_identity, foreground='darkred') + message)
 
     def _NH_SIPEngineGotException(self, notification):
         lines = ['An exception occured within the SIP core:']
@@ -1135,7 +1263,7 @@ class SIPSessionApplication(SIPApplication):
     def _NH_BonjourAccountDidAddNeighbour(self, notification):
         neighbour, record = notification.data.neighbour, notification.data.record
         now = datetime.now().replace(microsecond=0)
-        send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
+        #send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
         self.neighbours[neighbour] = BonjourNeighbour(neighbour, record.uri, record.name, record.host)
 
     def _NH_BonjourAccountDidUpdateNeighbour(self, notification):
@@ -1144,10 +1272,10 @@ class SIPSessionApplication(SIPApplication):
         try:
             bonjour_neighbour = self.neighbours[neighbour]
         except KeyError:
-            send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
+            #send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
             self.neighbours[neighbour] = BonjourNeighbour(neighbour, record.uri, record.name, record.host)
         else:
-            send_notice('%s Updated Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
+            #send_notice('%s Updated Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
             bonjour_neighbour.display_name = record.name
             bonjour_neighbour.host = record.host
             bonjour_neighbour.uri = record.uri
@@ -1160,7 +1288,90 @@ class SIPSessionApplication(SIPApplication):
         except KeyError:
             pass
         else:
-            send_notice('%s Bonjour neighbour left: "%s (%s)" <%s>' % (now, bonjour_neighbour.display_name, bonjour_neighbour.host, bonjour_neighbour.uri))
+            pass
+            #send_notice('%s Bonjour neighbour left: "%s (%s)" <%s>' % (now, bonjour_neighbour.display_name, bonjour_neighbour.host, bonjour_neighbour.uri))
+
+    def _NH_SIPEngineGotMessage(self, notification):
+        data = notification.data
+
+        call_id = data.headers.get('Call-ID', Null).body
+
+        try:
+            self.received_message_ids.remove(call_id)
+        except KeyError:
+            self.received_message_ids.add(call_id)
+        else:
+            # drop duplicate message received
+            return
+
+        content_type = data.content_type
+
+        if content_type not in ('text/plain', 'text/html', 'message/cpim', 'application/im-iscomposing+xml'):
+            return
+
+        account = AccountManager().find_account(data.request_uri)
+
+        is_cpim = False
+        cpim_message = None
+        is_composing = False
+
+        if content_type == 'message/cpim':
+            try:
+                cpim_message = CPIMPayload.decode(data.body)
+            except CPIMParserError:
+                return
+            else:
+                is_cpim = True
+                content = cpim_message.content
+                content_type = cpim_message.content_type
+                sender_identity = cpim_message.sender or data.from_header
+        else:
+            content = data.body.decode('utf-8')
+            content_type = data.content_type
+            sender_identity = data.from_header
+            window_tab_identity = sender_identity
+
+        if content_type == 'application/im-iscomposing+xml':
+            # body must not be utf-8 decoded
+            content = cpim_message.content if is_cpim else data.body
+            msg = IsComposingMessage.parse(content)
+            state = msg.state.value
+            refresh = msg.refresh.value if msg.refresh is not None else None
+            content_type = msg.content_type.value if msg.content_type is not None else None
+            last_active = msg.last_active.value if msg.last_active is not None else None
+            sender_identity = cpim_message.sender if cpim_message else data.from_header
+            #send_notice('Is composing state=%s, refresh=%s, last_active=%s' % (state, refresh, last_active))
+
+            if state == 'active':
+                if refresh is None:
+                    refresh = 120
+
+                if last_active is not None and (last_active - ISOTimestamp.now() > timedelta(seconds=refresh)):
+                    # message is old, discard it
+                    return
+            elif state == 'idle':
+                return
+
+            is_composing = True
+
+        from_header = FromHeader.new(sender_identity)
+        identity = '%s@%s' % (str(from_header.uri.user), str(from_header.uri.host))
+
+        message_session_to =  'sip:%s' % identity
+
+        if content_type != 'application/im-iscomposing+xml':
+            if self.message_session_to != message_session_to:
+                 send_notice('Message session started with %s' % identity)
+
+            self.message_session_to = message_session_to
+
+        if from_header.display_name:
+            identity = '"%s" <%s>' % (from_header.display_name, identity)
+
+        if is_composing:
+            send_notice("%s %s is composing a message" % (datetime.now().replace(microsecond=0), identity))
+        else:
+            send_notice("%s %s wrote: %s\n" % (datetime.now().replace(microsecond=0), identity, content))
 
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
@@ -1201,6 +1412,8 @@ class SIPSessionApplication(SIPApplication):
         if self.active_session is not None:
             self.active_session.hold()
         self.active_session = session
+        self.message_session_to = None
+
         self._update_prompt()
         if len(self.connected_sessions) > 1:
             # this displays the conencted sessions
@@ -1265,6 +1478,7 @@ class SIPSessionApplication(SIPApplication):
         if session is self.active_session:
             if self.connected_sessions:
                 self.active_session = self.connected_sessions[0]
+                self.message_session_to = None
                 self.active_session.unhold()
                 self.ignore_local_unhold = True
                 identity = str(self.active_session.remote_identity.uri)
@@ -1567,6 +1781,18 @@ class SIPSessionApplication(SIPApplication):
         call_initializer = OutgoingCallInitializer(self.account, target, audio=True, chat=chat_option=='+chat')
         call_initializer.start()
 
+    def _CH_message(self, target=None):
+        if not target:
+            send_notice('Usage: /message user@domain')
+        
+        try:
+            SIPURI.parse('sip:%s' % target)
+            if self.message_session_to != target:
+                send_notice('Message session started with %s' % target)
+            self.message_session_to = target
+        except SIPCoreError:
+            send_notice('Invalid SIP URI %s' % target)
+
     def _CH_chat(self, target, audio_option=None):
         if audio_option and audio_option != '+audio':
             raise TypeError()
@@ -1587,6 +1813,7 @@ class SIPSessionApplication(SIPApplication):
         if len(self.connected_sessions) > 1:
             self.active_session.hold()
             self.active_session = self.connected_sessions[(self.connected_sessions.index(self.active_session)+1) % len(self.connected_sessions)]
+            self.message_session_to = None
             self.active_session.unhold()
             self.ignore_local_unhold = True
             identity = str(self.active_session.remote_identity.uri)
@@ -1599,6 +1826,7 @@ class SIPSessionApplication(SIPApplication):
         if len(self.connected_sessions) > 1:
             self.active_session.hold()
             self.active_session = self.connected_sessions[self.connected_sessions.index(self.active_session)-1]
+            self.message_session_to = None
             self.active_session.unhold()
             self.ignore_local_unhold = True
             identity = str(self.active_session.remote_identity.uri)
@@ -2246,6 +2474,7 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /call {user[@domain]}: call the specified user using audio and chat')
         lines.append('  /audio {user[@domain]} [+chat]: call the specified user using audio and possibly chat')
         lines.append('  /chat {user[@domain]} [+audio]: call the specified user using chat and possibly audio')
+        lines.append('  /message {user[@domain]}: start a message session')
         lines.append('  /send {user[@domain]} {file}: initiate a file transfer with the specified user')
         lines.append('  /next: select the next connected session')
         lines.append('  /prev: select the previous connected session')
