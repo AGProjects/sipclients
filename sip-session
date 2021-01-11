@@ -36,7 +36,7 @@ from sipsimple.payloads.iscomposing import IsComposingMessage
 from sipsimple.session import IllegalStateError, Session
 from sipsimple.streams import MediaStreamRegistry
 from sipsimple.streams.msrp.filetransfer import FileSelector
-from sipsimple.streams.msrp.chat import CPIMPayload, CPIMParserError
+from sipsimple.streams.msrp.chat import CPIMPayload, CPIMParserError, ChatIdentity
 from sipsimple.storage import FileStorage
 from sipsimple.threading.green import run_in_green_thread
 from sipsimple.util import ISOTimestamp
@@ -101,11 +101,12 @@ class RTPStatisticsThread(Thread):
 class OutgoingMessage(object):
     implements(IObserver)
 
-    def __init__(self, account, target, message, msg_id):
+    def __init__(self, account, target, message, msg_id, use_cpim=True):
         self.account = account
         self.target = target
         self.message = message
         self.msg_id = msg_id
+        self.use_cpim = use_cpim
 
         self.remote_uri = None
         self.routes = None
@@ -161,11 +162,27 @@ class OutgoingMessage(object):
         if self.account.display_name:
             identity = '"%s" <%s>' % (self.account.display_name, identity)
 
-        message_request = Message(FromHeader(self.account.uri, self.account.display_name), ToHeader(self.target), RouteHeader(route.uri), 'text/plain', self.message, credentials=self.account.credentials)
-        notification_center.add_observer(self, sender=message_request)
-        #send_notice('%s Sending SMS to %s...' % (datetime.now().replace(microsecond=0), self.remote_uri))
+        
+        if self.use_cpim:
+            content_type = 'message/cpim'
+            cpim_payload = CPIMPayload(self.message.encode('utf-8'),
+                                  'text/plain', 
+                                  charset='utf-8', 
+                                  sender=ChatIdentity(self.account.uri, self.account.display_name),
+                                  recipients=[ChatIdentity(self.remote_uri, None)])
+            content = cpim_payload.encode()[0]
+        else:
+            content = self.message.encode('utf-8'),
+            content_type = 'text/plain'
 
-        message_request.send()
+        message_request = Message(FromHeader(self.account.uri, self.account.display_name), 
+                                  ToHeader(self.target), 
+                                  RouteHeader(route.uri), 
+                                  content_type, 
+                                  content, 
+                                  credentials=self.account.credentials)
+        notification_center.add_observer(self, sender=message_request)
+        message_request.send(15)
 
     def _NH_DNSLookupDidFail(self, notification):
         notification_center = NotificationCenter()
@@ -1314,7 +1331,8 @@ class SIPSessionApplication(SIPApplication):
         is_cpim = False
         cpim_message = None
         is_composing = False
-
+        identity = None
+        
         if content_type == 'message/cpim':
             try:
                 cpim_message = CPIMPayload.decode(data.body)
@@ -1324,7 +1342,17 @@ class SIPSessionApplication(SIPApplication):
                 is_cpim = True
                 content = cpim_message.content
                 content_type = cpim_message.content_type
-                sender_identity = cpim_message.sender or data.from_header
+
+                if cpim_message.sender:
+                    identity = '%s@%s' % (cpim_message.sender.uri.user, cpim_message.sender.uri.host)
+                    if data.from_header.uri == cpim_message.sender.uri:
+                        if cpim_message.sender.display_name:
+                             identity = '"%s" <%s>' % (cpim_message.sender.display_name, identity)
+                        elif data.from_header.display_name:
+                             identity = '"%s" <%s>' % (data.from_header.display_name, identity)
+                else:
+                    sender_identity = data.from_header
+                
         else:
             content = data.body.decode('utf-8')
             content_type = data.content_type
@@ -1354,9 +1382,12 @@ class SIPSessionApplication(SIPApplication):
 
             is_composing = True
 
-        from_header = FromHeader.new(sender_identity)
-        identity = '%s@%s' % (str(from_header.uri.user), str(from_header.uri.host))
-
+        if not identity and sender_identity:
+            from_header = FromHeader.new(sender_identity)
+            identity = '%s@%s' % (str(from_header.uri.user), str(from_header.uri.host))
+            if from_header.display_name:
+                identity = '"%s" <%s>' % (from_header.display_name, identity)
+            
         message_session_to =  'sip:%s' % identity
 
         if content_type != 'application/im-iscomposing+xml':
@@ -1364,9 +1395,6 @@ class SIPSessionApplication(SIPApplication):
                  send_notice('Message session started with %s' % identity)
 
             self.message_session_to = message_session_to
-
-        if from_header.display_name:
-            identity = '"%s" <%s>' % (from_header.display_name, identity)
 
         if is_composing:
             send_notice("%s %s is composing a message" % (datetime.now().replace(microsecond=0), identity))
