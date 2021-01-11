@@ -1231,7 +1231,7 @@ class SIPSessionApplication(SIPApplication):
         except KeyError:
             pass
         else:
-            if s:
+            if s and notification.data.expires == 0:
                 send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
                 return
 
