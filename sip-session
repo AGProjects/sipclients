@@ -176,7 +176,7 @@ class OutgoingMessage(object):
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=notification.sender)
         if notification.data.code == 202:
-            send_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri, notification.data.code ))
+            send_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
         elif notification.data.code == 200:
             send_notice('%s Message %s received by %s' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
         else:
