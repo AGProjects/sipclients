@@ -259,6 +259,12 @@ class RegistrationApplication(SIPApplication):
         registrar = notification.data.registrar
         if not self.success:
             message = '%s Registered contact "%s" at %s:%d;transport=%s for %d seconds\n' % (datetime.now().replace(microsecond=0), contact_header.uri, registrar.address, registrar.port, registrar.transport, expires)
+            if notification.sender.contact.public_gruu:
+                 message += '%s    Public GRUU: "%s"\n' % (datetime.now().replace(microsecond=0), notification.sender.contact.public_gruu)
+                 
+            if notification.sender.contact.temporary_gruu:
+                 message += '%s Temporary GRUU: "%s"\n' % (datetime.now().replace(microsecond=0), notification.sender.contact.temporary_gruu)
+            
             if len(contact_header_list) > 1:
                 message += 'Other registered contacts:\n%s\n' % '\n'.join(['  %s (expires in %s seconds)' % (str(other_contact_header.uri), other_contact_header.expires) for other_contact_header in contact_header_list if other_contact_header.uri != notification.data.contact_header.uri])
             self.output.put(message)
