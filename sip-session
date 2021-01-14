@@ -1399,7 +1399,7 @@ class SIPSessionApplication(SIPApplication):
         if is_composing:
             send_notice("%s %s is composing a message" % (datetime.now().replace(microsecond=0), identity))
         else:
-            send_notice("%s %s wrote: %s\n" % (datetime.now().replace(microsecond=0), identity, content))
+            send_notice("%s %s wrote: %s" % (datetime.now().replace(microsecond=0), identity, content))
 
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
