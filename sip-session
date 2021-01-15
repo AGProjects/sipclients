@@ -386,10 +386,11 @@ class MessageSession(object):
         if message.id in (None, 'OTR'):
             return
 
-        if notification.data.code == 408 and self.routes:
-            server = notification.data.headers.get('Server', Null).body
-            client = notification.data.headers.get('Client', Null).body
+        server = notification.data.headers.get('Server', Null).body
+        client = notification.data.headers.get('Client', Null).body
 
+        if notification.data.code == 408 and self.routes:
+            pass
             # self.route = self.routes.pop(0)
             # TO DO retry
 
