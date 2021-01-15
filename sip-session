@@ -2760,7 +2760,6 @@ class SIPSessionApplication(SIPApplication):
         show_notice(lines, bold=False)
 
     def _update_prompt(self):
-        show_notice('Update prompt')
         ui = UI()
         session = self.active_session
         if session is None:
