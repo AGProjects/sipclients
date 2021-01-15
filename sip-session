@@ -5,6 +5,7 @@ import re
 import signal
 import sys
 import urllib
+import random
 import requests
 
 from collections import defaultdict
@@ -19,10 +20,14 @@ from time import sleep
 
 from application import log
 from application.notification import IObserver, NotificationCenter
+from application.python.queue import EventQueue
 from application.python import Null
 from eventlib import api
 from twisted.internet import reactor
 from zope.interface import implements
+
+from otr import OTRSession, OTRTransport, OTRState, SMPStatus
+from otr.exceptions import IgnoreMessage, UnencryptedMessage, EncryptedMessageError, OTRError
 
 from sipsimple.core import Engine, FromHeader, Message, RouteHeader, SIPCoreError, SIPURI, ToHeader
 
@@ -36,7 +41,7 @@ from sipsimple.payloads.iscomposing import IsComposingMessage
 from sipsimple.session import IllegalStateError, Session
 from sipsimple.streams import MediaStreamRegistry
 from sipsimple.streams.msrp.filetransfer import FileSelector
-from sipsimple.streams.msrp.chat import CPIMPayload, CPIMParserError, ChatIdentity
+from sipsimple.streams.msrp.chat import CPIMPayload, SimplePayload, CPIMParserError, ChatIdentity, OTREncryption
 from sipsimple.storage import FileStorage
 from sipsimple.threading.green import run_in_green_thread
 from sipsimple.util import ISOTimestamp
@@ -98,111 +103,303 @@ class RTPStatisticsThread(Thread):
         self.stopped = True
 
 
-class OutgoingMessage(object):
-    implements(IObserver)
+class QueuedMessage(object):
+    def __init__(self, msg_id, content, content_type='text/plain'):
+        self.id = msg_id
+        self.content = content
+        self.timestamp = None
+        self.content_type = content_type
+        self.encrypted = False
 
-    def __init__(self, account, target, message, msg_id, use_cpim=True):
+
+class OTRInternalMessage(QueuedMessage):
+    def __init__(self, content):
+        super(OTRInternalMessage, self).__init__('OTR', content, 'text/plain')
+
+
+class MessageSession(object):
+    implements(IObserver)
+    
+    def __init__(self, account, target, use_cpim=False):
         self.account = account
         self.target = target
-        self.message = message
-        self.msg_id = msg_id
-        self.use_cpim = use_cpim
-
-        self.remote_uri = None
         self.routes = None
+        self.use_cpim = use_cpim
+        self.msg_id = 0
+        self.started = False
+        self.msg_map = {}
+        self.route = None
+        self.ended = False
+
+        self.encryption = OTREncryption(self)
+
+        self.message_queue = EventQueue(self._send_message)
+
+        target = self.target 
+
+        if '@' not in target:
+            target = '%s@%s' % (target, self.account.id.domain)
+
+        if not target.startswith('sip:') and not target.startswith('sips:'):
+            target = 'sip:' + target
+
+        self.remote_uri = str(target).split(":")[1]
+
+        try:
+            self.target_uri = SIPURI.parse(target)
+        except SIPCoreError:
+            send_notice('Illegal SIP URI: %s' % target)
+            self.target_uri = None
+
+        self.notification_center = NotificationCenter()
+
+        send_notice('Message session started with %s' % self.target)
+
+    def end(self):
+        send_notice('Ending message session to %s' % self.target)
+        if self.encryption.active:
+            self.encryption.stop()
+
+        self.notification_center = None
+        self.message_queue = None
+        self.encryption = None
+        self.ended = True
 
     def start(self):
-        if '@' not in self.target:
-            self.target = '%s@%s' % (self.target, self.account.id.domain)
+        if self.ended:
+            return
 
-        if not self.target.startswith('sip:') and not self.target.startswith('sips:'):
-            self.target = 'sip:' + self.target
-        try:
-            self.target = SIPURI.parse(self.target)
-        except SIPCoreError:
-            send_notice('Illegal SIP URI: %s' % self.target)
+        lookup = DNSLookup()
+        self.notification_center.add_observer(self, sender=lookup)
+        settings = SIPSimpleSettings()
+
+        if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
+            uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
+        elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
+            uri = SIPURI(host=self.account.id.domain)
         else:
-            if '.' not in self.target.host and not isinstance(self.account, BonjourAccount):
-                self.target.host = '%s.%s' % (self.target.host, self.account.id.domain)
-            
-            self.remote_uri = str(self.target).split(":")[1]
-            lookup = DNSLookup()
-            notification_center = NotificationCenter()
-            notification_center.add_observer(self, sender=lookup)
-            settings = SIPSimpleSettings()
-            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
-                uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
-            elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
-                uri = SIPURI(host=self.account.id.domain)
-            else:
-                uri = self.target
+            uri = self.target_uri
 
-            lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
+        lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
 
     def handle_notification(self, notification):
+        if self.ended:
+            return
+
         handler = getattr(self, '_NH_%s' % notification.name, Null)
         handler(notification)
 
+    def inject_otr_message(self, data):
+        send_notice('Requesting %s of OTR encryption...' % 'stop' if self.encryption.active else 'start')
+        messageObject = OTRInternalMessage(data)
+        self.message_queue.put(messageObject)
+
     def _NH_DNSLookupDidSucceed(self, notification):
-        notification_center = NotificationCenter()
-        notification.center.remove_observer(self, sender=notification.sender)
+        self.notification_center.remove_observer(self, sender=notification.sender)
 
         self.routes = notification.data.result
-        self._send_message()
 
-    def _send_message(self):
-        notification_center = NotificationCenter()
+        if not self.started:
+            self.message_queue.start()
+        
+        if not self.encryption.active:
+            self.encryption.start()
+
+        send_notice('%s Session to %s will start via %s' % (datetime.now().replace(microsecond=0), self.remote_uri, self.routes[0]))
+        self.started = True
+
+    def _NH_DNSLookupDidFail(self, notification):
+        self.notification_center.remove_observer(self, sender=notification.sender)
+        send_notice('%s Session to %s failed: DNS lookup failed' % (datetime.now().replace(microsecond=0), self.remote_uri))
+        self.message_queue.stop()
+        
+    def send_message(self, text):
         if not self.routes:
-            send_notice('No more routes to try. Aborting.\n')
+            self.start()
+
+        self.msg_id = self.msg_id + 1
+        messageObject = QueuedMessage(self.msg_id , text)
+
+        self.message_queue.put(messageObject)
+        return self.msg_id 
+        
+    def _send_message(self, message):
+        if not self.routes:
             return
 
-        route = self.routes.pop(0)
+        if not self.route:
+            self.route = self.routes.pop(0)
+            
         identity = str(self.account.uri)
 
         if self.account.display_name:
             identity = '"%s" <%s>' % (self.account.display_name, identity)
 
-        
+        if isinstance(message.content, unicode):
+            charset = 'utf8'
+            message.content = message.content.encode(charset)
+        else:
+            charset = None
+            
+        what_type = None
+
+        if not isinstance(message, OTRInternalMessage):
+            try:
+                message.content = self.encryption.otr_session.handle_output(message.content, message.content_type)
+            except OTRError as e:
+                if 'has ended the private conversation' in str(e):
+                    send_notice('Encryption has been disabled by remote party, please resend the message again')
+                    self.encryption.stop()
+                else:
+                    send_notice('Failed to encrypt outgoing message: %s' % str(e))
+                return
+            
+        else:
+            what_type = 'OTR'
+
+        if message.timestamp is None:
+            message.timestamp = ISOTimestamp.now()
+ 
+
         if self.use_cpim:
             content_type = 'message/cpim'
-            cpim_payload = CPIMPayload(self.message.encode('utf-8'),
+            payload = CPIMPayload(message.content,
                                   'text/plain', 
                                   charset='utf-8', 
                                   sender=ChatIdentity(self.account.uri, self.account.display_name),
                                   recipients=[ChatIdentity(self.remote_uri, None)])
-            content = cpim_payload.encode()[0]
         else:
-            content = self.message.encode('utf-8'),
-            content_type = 'text/plain'
+            payload = SimplePayload(message.content, message.content_type, charset)
+
+        content, content_type = payload.encode()
 
         message_request = Message(FromHeader(self.account.uri, self.account.display_name), 
-                                  ToHeader(self.target), 
-                                  RouteHeader(route.uri), 
-                                  content_type, 
-                                  content, 
+                                  ToHeader(self.target_uri),
+                                  RouteHeader(self.route.uri),
+                                  content_type,
+                                  content,
                                   credentials=self.account.credentials)
-        notification_center.add_observer(self, sender=message_request)
+
+        self.notification_center.add_observer(self, sender=message_request)        
+
+        if message.id != 'OTR':
+            if '?OTR:' in content:
+                send_notice('Encrypted message %s sent to %s' % (message.id, self.route.uri))
+                message.encrypted = True
+            else:
+                send_notice('Message %s sent to %s' % (message.id, self.route.uri))
+
+        self.msg_map[message_request] = message
         message_request.send(15)
 
-    def _NH_DNSLookupDidFail(self, notification):
-        notification_center = NotificationCenter()
-        notification_center.remove_observer(self, sender=notification.sender)
-        send_notice('%s Message %d to %s failed: DNS lookup failed' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
+    def handle_incoming(self, from_header, content_type, data):
+        self.msg_id = self.msg_id + 1
+
+        if content_type == 'message/cpim':
+            try:
+                payload = CPIMPayload.decode(content)
+            except CPIMParserError as e:
+                send_notice('CPIM parse error: %s' % str(e))
+                return None
+            else:
+
+                if payload.sender:
+                    identity = '%s@%s' % (payload.sender.uri.user, payload.sender.uri.host)
+                    if from_header.uri == cpim_message.sender.uri:
+                        if payload.sender.display_name:
+                            identity = '"%s" <%s>' % (payload.sender.display_name, identity)
+                        elif from_header.display_name:
+                            identity = '"%s" <%s>' % (from_header.display_name, identity)
+                else:
+                    identity = from_header
+                
+        else:
+            payload = SimplePayload.decode(data, content_type)
+            from_header = FromHeader.new(from_header)
+            identity = '%s@%s' % (str(from_header.uri.user), str(from_header.uri.host))
+
+        content = payload.content
+        content_type = payload.content_type
+
+        try:
+            content = self.encryption.otr_session.handle_input(content, content_type)
+        except IgnoreMessage:
+            return None
+        except UnencryptedMessage:
+            encrypted = False
+            encryption_active = True
+        except EncryptedMessageError as e:
+            send_notice('OTP encrypted message error: %s' % str(e))
+            return None
+        except OTRError as e:
+            send_notice('OTP error: %s' % str(e))
+            return None
+        else:
+            encrypted = encryption_active = self.encryption.active
+
+        if payload.charset is not None:
+            content = content.decode(payload.charset)
+        elif payload.content_type.startswith('text/'):
+            content.decode('utf8')
+
+        return (content_type, content, identity, self.msg_id, encrypted)
 
     def _NH_SIPMessageDidSucceed(self, notification):
-        notification_center = NotificationCenter()
-        notification_center.remove_observer(self, sender=notification.sender)
-        if notification.data.code == 202:
-            send_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
-        elif notification.data.code == 200:
-            send_notice('%s Message %s received by %s' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri))
+        self.notification_center.remove_observer(self, sender=notification.sender)
+
+        try:
+            message = self.msg_map[notification.sender]
+        except KeyError:
+            message = None
         else:
-            send_notice('%s Message %s received by %s (code %d)' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri, notification.data.code ))
+            del(self.msg_map[notification.sender])
+            
+        if not message:
+            return
+
+        if message.id in (None, 'OTR'):
+            return
+        
+        if notification.data.code == 202:
+            send_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
+        elif notification.data.code == 200:
+            if message.encrypted:
+                send_notice('%s Encrypted message %s received by %s' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
+            else:
+                send_notice('%s Message %s received by %s' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
+        else:
+            send_notice('%s Message %s received by %s (code %d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri, notification.data.code ))
+        
 
     def _NH_SIPMessageDidFail(self, notification):
-        notification_center = NotificationCenter()
-        notification_center.remove_observer(self, sender=notification.sender)
-        send_notice('%s Message %s to %s failed: %s (%d)' % (datetime.now().replace(microsecond=0), self.msg_id, self.remote_uri, notification.data.reason, notification.data.code))
+        self.notification_center.remove_observer(self, sender=notification.sender)
+        try:
+            message = self.msg_map[notification.sender]
+        except KeyError:
+            message = None
+        else:
+            del(self.msg_map[notification.sender])
+            
+        if not message:
+            return
+
+        if message.id in (None, 'OTR'):
+            return
+
+        if notification.data.code == 408 and self.routes:
+            server = notification.data.headers.get('Server', Null).body
+            client = notification.data.headers.get('Client', Null).body
+
+            # self.route = self.routes.pop(0)
+            # TO DO retry
+
+        if message.encrypted:
+            send_notice('%s Encrypted message %s to %s failed on %s: %s (%d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri, server or client, notification.data.reason, notification.data.code))
+        else:
+            send_notice('%s Message %s to %s failed on %s: %s (%d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri,  server or client, notification.data.reason, notification.data.code))
+
+
+OTRTransport.register(MessageSession)
 
 
 class OutgoingCallInitializer(object):
@@ -226,6 +423,7 @@ class OutgoingCallInitializer(object):
             self.target = '%s@%s' % (self.target, self.account.id.domain)
         if not self.target.startswith('sip:') and not self.target.startswith('sips:'):
             self.target = 'sip:' + self.target
+
         try:
             self.target = SIPURI.parse(self.target)
         except SIPCoreError:
@@ -968,6 +1166,7 @@ class IncomingTransferHandler(object):
         self._terminate(failure_reason=notification.data.reason)
 
 
+
 class SIPSessionApplication(SIPApplication):
     # public methods
     #
@@ -977,8 +1176,6 @@ class SIPSessionApplication(SIPApplication):
         self.options = None
         self.target = None
         
-        self.msg_id = 1
-
         self.active_session = None
         self.message_session_to = None
         self.outgoing_session = None
@@ -989,6 +1186,8 @@ class SIPSessionApplication(SIPApplication):
         self.registration_succeeded = {}
         self.stopped_event = Event()
         self.received_message_ids = set()
+        
+        self.message_sessions = set()
 
         self.ip_address_monitor = IPAddressMonitor()
         self.logger = None
@@ -1178,12 +1377,15 @@ class SIPSessionApplication(SIPApplication):
 
     def _NH_UIInputGotText(self, notification):
         msrp_chat = None
-        message = notification.data.text 
+        message_text = notification.data.text
+        local_identity = '%s@%s' % (self.account.id.username, self.account.id.domain)
+        encrypted = False
+
         if self.active_session is not None:
             msrp_chat = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
 
             if msrp_chat:
-                msrp_chat.send_message(message)
+                msrp_chat.send_message(message_text)
 
                 if msrp_chat.local_identity.display_name:
                     local_identity = msrp_chat.local_identity.display_name
@@ -1195,28 +1397,30 @@ class SIPSessionApplication(SIPApplication):
                 
         elif self.message_session_to:
             # compose SMS message
-            settings = SIPSimpleSettings()
-            lookup = DNSLookup()
-            notification_center = NotificationCenter()
-            notification_center.add_observer(self, sender=lookup)
-            if isinstance(self.account, Account) and self.account.sip.outbound_proxy is not None:
-                uri = SIPURI(host=self.account.sip.outbound_proxy.host, port=self.account.sip.outbound_proxy.port, parameters={'transport': self.account.sip.outbound_proxy.transport})
-            elif isinstance(self.account, Account) and self.account.sip.always_use_my_proxy:
-                uri = SIPURI(host=self.account.id.domain)
-            else:
-                uri = self.message_session_to
+            message_session = self.message_session(self.message_session_to)
+            msg_id = message_session.send_message(message_text)
+            message_text = message_text + ' (%s)' % msg_id
 
-            local_identity = '%s@%s' % (self.account.id.username, self.account.id.domain)
-            msg = OutgoingMessage(self.account, self.message_session_to, message, self.msg_id)
-            msg.start()
-            message = message + ' (%s)' % self.msg_id
-            self.msg_id = self.msg_id + 1
+            if message_session.encryption.active:
+                local_identity = '%s encrypted text sent to %s' % (local_identity, self.message_session_to)
+            else:
+                local_identity = '%s clear text sent to %s' % (local_identity, self.message_session_to)
+            
         else:
             send_notice('No active chat or message session')
             return
 
         ui = UI()
-        ui.write(RichText('%s> ' % local_identity, foreground='darkred') + message)
+        ui.write(RichText('%s> ' % local_identity, foreground='darkred') + message_text)
+
+    def message_session(self, recipient):
+        try:
+            message_session = (session for session in self.message_sessions if session.target == recipient and self.account == session.account).next()
+        except StopIteration:
+            message_session = MessageSession(self.account, recipient)
+            self.message_sessions.add(message_session)
+        
+        return message_session
 
     def _NH_SIPEngineGotException(self, notification):
         lines = ['An exception occured within the SIP core:']
@@ -1328,46 +1532,25 @@ class SIPSessionApplication(SIPApplication):
 
         account = AccountManager().find_account(data.request_uri)
 
-        is_cpim = False
-        cpim_message = None
         is_composing = False
-        identity = None
+
+        from_header = FromHeader.new(data.from_header)
+        identity = '%s@%s' % (str(from_header.uri.user), str(from_header.uri.host))
+        message_session = self.message_session(identity)
+        parsed_payload = message_session.handle_incoming(data.from_header, content_type, data.body)
+
+        if parsed_payload is None:
+            return
         
-        if content_type == 'message/cpim':
-            try:
-                cpim_message = CPIMPayload.decode(data.body)
-            except CPIMParserError:
-                return
-            else:
-                is_cpim = True
-                content = cpim_message.content
-                content_type = cpim_message.content_type
-
-                if cpim_message.sender:
-                    identity = '%s@%s' % (cpim_message.sender.uri.user, cpim_message.sender.uri.host)
-                    if data.from_header.uri == cpim_message.sender.uri:
-                        if cpim_message.sender.display_name:
-                             identity = '"%s" <%s>' % (cpim_message.sender.display_name, identity)
-                        elif data.from_header.display_name:
-                             identity = '"%s" <%s>' % (data.from_header.display_name, identity)
-                else:
-                    sender_identity = data.from_header
-                
-        else:
-            content = data.body.decode('utf-8')
-            content_type = data.content_type
-            sender_identity = data.from_header
-            window_tab_identity = sender_identity
-
+        (content_type, content, identity, msg_id, encrypted) = parsed_payload            
         if content_type == 'application/im-iscomposing+xml':
             # body must not be utf-8 decoded
-            content = cpim_message.content if is_cpim else data.body
             msg = IsComposingMessage.parse(content)
             state = msg.state.value
             refresh = msg.refresh.value if msg.refresh is not None else None
             content_type = msg.content_type.value if msg.content_type is not None else None
             last_active = msg.last_active.value if msg.last_active is not None else None
-            sender_identity = cpim_message.sender if cpim_message else data.from_header
+            sender_identity = data.from_header
             #send_notice('Is composing state=%s, refresh=%s, last_active=%s' % (state, refresh, last_active))
 
             if state == 'active':
@@ -1382,24 +1565,25 @@ class SIPSessionApplication(SIPApplication):
 
             is_composing = True
 
-        if not identity and sender_identity:
-            from_header = FromHeader.new(sender_identity)
-            identity = '%s@%s' % (str(from_header.uri.user), str(from_header.uri.host))
-            if from_header.display_name:
-                identity = '"%s" <%s>' % (from_header.display_name, identity)
-            
-        message_session_to =  'sip:%s' % identity
-
         if content_type != 'application/im-iscomposing+xml':
-            if self.message_session_to != message_session_to:
+            if self.message_session_to != identity:
                  send_notice('Message session started with %s' % identity)
 
-            self.message_session_to = message_session_to
+            self.message_session_to = identity
 
+        if from_header.display_name:
+            identity = '"%s" <%s>' % (from_header.display_name, identity)
+    
         if is_composing:
             send_notice("%s %s is composing a message" % (datetime.now().replace(microsecond=0), identity))
         else:
-            send_notice("%s %s wrote: %s" % (datetime.now().replace(microsecond=0), identity, content))
+            if encrypted:
+                send_notice("%s %s wrote: %s (%s encrypted)" % (datetime.now().replace(microsecond=0), identity, content, msg_id))
+            else:
+                if content.startswith('?OTR:'):
+                    send_notice("%s %s wrote a garbled message, probably encryption session must be reset using /otr command" % (datetime.now().replace(microsecond=0), identity))
+                else:
+                    send_notice("%s %s wrote: %s (%s)" % (datetime.now().replace(microsecond=0), identity, content, msg_id))
 
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
@@ -1816,7 +2000,7 @@ class SIPSessionApplication(SIPApplication):
         try:
             SIPURI.parse('sip:%s' % target)
             if self.message_session_to != target:
-                send_notice('Message session started with %s' % target)
+                message_session = self.message_session(target)
             self.message_session_to = target
         except SIPCoreError:
             send_notice('Invalid SIP URI %s' % target)
@@ -2129,6 +2313,18 @@ class SIPSessionApplication(SIPApplication):
         elif self.outgoing_session is not None:
             send_notice('Cancelling SIP session...')
             self.outgoing_session.end()
+        else:
+            try:
+                message_session = (session for session in self.message_sessions if session.target == self.message_session_to and self.account == session.account).next()
+            except StopIteration:
+                pass
+            else:
+                message_session.end()
+                try:  
+                    self.message_sessions.remove(message_session)
+                except KeyError:
+                    send_notice('Message session not found')
+                    pass
 
     @run_in_green_thread
     def _CH_dtmf(self, tones):
@@ -2310,8 +2506,20 @@ class SIPSessionApplication(SIPApplication):
 
     def _CH_otr(self):
         if self.active_session is None:
+            message_session = self.message_session(self.message_session_to)
+            
+            if not message_session:
+                return
+            
+            if message_session.encryption.active:
+                send_notice("Message encryption will stop")
+                message_session.encryption.stop()
+            else:
+                send_notice("Message encryption will start")
+                message_session.encryption.start()
+            
             return
-
+        
         chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
         
         if chat_stream is None:
@@ -2333,9 +2541,16 @@ class SIPSessionApplication(SIPApplication):
         send_notice("OTR secret answer is now set to: %s" % secret)
 
     def _CH_otr_answer(self, *args):
+        answer = " ".join(args) if args else None
+
         if self.active_session is None:
-            send_notice("OTR functions can be used only during active chat sessions")
-            return
+            message_session = self.message_session(self.message_session_to)
+            
+            if not message_session:
+                send_notice("OTR functions can be used only during active chat sessions")
+                return
+
+            message_session.encryption.smp_answer(answer)
 
         chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
         
@@ -2343,14 +2558,24 @@ class SIPSessionApplication(SIPApplication):
             send_notice("OTR functions can be used only during active chat sessions")
             return
             
-        answer = " ".join(args) if args else None
-
         if answer:
             chat_stream.encryption.smp_answer(answer)
 
     def _CH_otr_question(self, *args):
+        question = " ".join(args) if args else None
+
         if self.active_session is None:
-            send_notice("OTR functions can be used only during active chat sessions")
+            message_session = self.message_session(self.message_session_to)
+
+            if not message_session:
+                send_notice("OTR functions can be used only during active chat sessions")
+                return
+
+            if question:
+                send_notice("OTR SMP verification question will be asked: %s" % question)
+                message_session.encryption.verified = False
+                message_session.encryption.smp_verify(self.smp_secret, question=question)
+                
             return
 
         chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
@@ -2364,8 +2589,6 @@ class SIPSessionApplication(SIPApplication):
             send_notice("First set the SMP secret answer using /otr_secret command")
             return
          
-        question = " ".join(args) if args else None
-
         if question:
             send_notice("OTR SMP verification question will be asked: %s" % question)
             chat_stream.encryption.verified = False
@@ -2537,6 +2760,7 @@ class SIPSessionApplication(SIPApplication):
         send_notice(lines, bold=False)
 
     def _update_prompt(self):
+        send_notice('Update prompt')
         ui = UI()
         session = self.active_session
         if session is None:
