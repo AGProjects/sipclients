@@ -56,7 +56,7 @@ from sipclient.ui import Prompt, Question, RichText, UI
 
 
 # This is a helper function for sending formatted notice messages
-def send_notice(text, bold=True):
+def show_notice(text, bold=True):
     ui = UI()
     if isinstance(text, list):
         ui.writelines([RichText(line, bold=bold) if not isinstance(line, RichText) else line for line in text])
@@ -91,7 +91,7 @@ class RTPStatisticsThread(Thread):
                 if audio_stream is not None:
                     stats = audio_stream.statistics
                     if stats is not None:
-                        reactor.callFromThread(send_notice, '%s RTP statistics: RTT=%d ms, packet loss=%.1f%%, jitter RX/TX=%d/%d ms' % 
+                        reactor.callFromThread(show_notice, '%s RTP statistics: RTT=%d ms, packet loss=%.1f%%, jitter RX/TX=%d/%d ms' % 
                                                                 (datetime.now().replace(microsecond=0),
                                                                 stats['rtt']['avg'] / 1000,
                                                                 100.0 * stats['rx']['packets_lost'] / stats['rx']['packets'] if stats['rx']['packets'] else 0,
@@ -148,15 +148,15 @@ class MessageSession(object):
         try:
             self.target_uri = SIPURI.parse(target)
         except SIPCoreError:
-            send_notice('Illegal SIP URI: %s' % target)
+            show_notice('Illegal SIP URI: %s' % target)
             self.target_uri = None
 
         self.notification_center = NotificationCenter()
 
-        send_notice('Message session started with %s' % self.target)
+        show_notice('Message session started with %s' % self.target)
 
     def end(self):
-        send_notice('Ending message session to %s' % self.target)
+        show_notice('Ending message session to %s' % self.target)
         if self.encryption.active:
             self.encryption.stop()
 
@@ -190,7 +190,7 @@ class MessageSession(object):
         handler(notification)
 
     def inject_otr_message(self, data):
-        send_notice('Requesting %s of OTR encryption...' % 'stop' if self.encryption.active else 'start')
+        show_notice('Requesting %s of OTR encryption...' % 'stop' if self.encryption.active else 'start')
         messageObject = OTRInternalMessage(data)
         self.message_queue.put(messageObject)
 
@@ -205,12 +205,12 @@ class MessageSession(object):
         if not self.encryption.active:
             self.encryption.start()
 
-        send_notice('%s Session to %s will start via %s' % (datetime.now().replace(microsecond=0), self.remote_uri, self.routes[0]))
+        show_notice('%s Session to %s will start via %s' % (datetime.now().replace(microsecond=0), self.remote_uri, self.routes[0]))
         self.started = True
 
     def _NH_DNSLookupDidFail(self, notification):
         self.notification_center.remove_observer(self, sender=notification.sender)
-        send_notice('%s Session to %s failed: DNS lookup failed' % (datetime.now().replace(microsecond=0), self.remote_uri))
+        show_notice('%s Session to %s failed: DNS lookup failed' % (datetime.now().replace(microsecond=0), self.remote_uri))
         self.message_queue.stop()
         
     def send_message(self, text):
@@ -248,10 +248,10 @@ class MessageSession(object):
                 message.content = self.encryption.otr_session.handle_output(message.content, message.content_type)
             except OTRError as e:
                 if 'has ended the private conversation' in str(e):
-                    send_notice('Encryption has been disabled by remote party, please resend the message again')
+                    show_notice('Encryption has been disabled by remote party, please resend the message again')
                     self.encryption.stop()
                 else:
-                    send_notice('Failed to encrypt outgoing message: %s' % str(e))
+                    show_notice('Failed to encrypt outgoing message: %s' % str(e))
                 return
             
         else:
@@ -284,10 +284,10 @@ class MessageSession(object):
 
         if message.id != 'OTR':
             if '?OTR:' in content:
-                send_notice('Encrypted message %s sent to %s' % (message.id, self.route.uri))
+                show_notice('Encrypted message %s sent to %s' % (message.id, self.route.uri))
                 message.encrypted = True
             else:
-                send_notice('Message %s sent to %s' % (message.id, self.route.uri))
+                show_notice('Message %s sent to %s' % (message.id, self.route.uri))
 
         self.msg_map[message_request] = message
         message_request.send(15)
@@ -299,7 +299,7 @@ class MessageSession(object):
             try:
                 payload = CPIMPayload.decode(content)
             except CPIMParserError as e:
-                send_notice('CPIM parse error: %s' % str(e))
+                show_notice('CPIM parse error: %s' % str(e))
                 return None
             else:
 
@@ -329,10 +329,10 @@ class MessageSession(object):
             encrypted = False
             encryption_active = True
         except EncryptedMessageError as e:
-            send_notice('OTP encrypted message error: %s' % str(e))
+            show_notice('OTP encrypted message error: %s' % str(e))
             return None
         except OTRError as e:
-            send_notice('OTP error: %s' % str(e))
+            show_notice('OTP error: %s' % str(e))
             return None
         else:
             encrypted = encryption_active = self.encryption.active
@@ -361,14 +361,14 @@ class MessageSession(object):
             return
         
         if notification.data.code == 202:
-            send_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
+            show_notice('%s Message %s to %s will be delivered later by the server' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
         elif notification.data.code == 200:
             if message.encrypted:
-                send_notice('%s Encrypted message %s received by %s' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
+                show_notice('%s Encrypted message %s received by %s' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
             else:
-                send_notice('%s Message %s received by %s' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
+                show_notice('%s Message %s received by %s' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri))
         else:
-            send_notice('%s Message %s received by %s (code %d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri, notification.data.code ))
+            show_notice('%s Message %s received by %s (code %d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri, notification.data.code ))
         
 
     def _NH_SIPMessageDidFail(self, notification):
@@ -394,9 +394,9 @@ class MessageSession(object):
             # TO DO retry
 
         if message.encrypted:
-            send_notice('%s Encrypted message %s to %s failed on %s: %s (%d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri, server or client, notification.data.reason, notification.data.code))
+            show_notice('%s Encrypted message %s to %s failed on %s: %s (%d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri, server or client, notification.data.reason, notification.data.code))
         else:
-            send_notice('%s Message %s to %s failed on %s: %s (%d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri,  server or client, notification.data.reason, notification.data.code))
+            show_notice('%s Message %s to %s failed on %s: %s (%d)' % (datetime.now().replace(microsecond=0), message.id, self.remote_uri,  server or client, notification.data.reason, notification.data.code))
 
 
 OTRTransport.register(MessageSession)
@@ -417,7 +417,7 @@ class OutgoingCallInitializer(object):
 
     def start(self):
         if isinstance(self.account, BonjourAccount) and '@' not in self.target:
-            send_notice('Bonjour mode requires a host in the destination address')
+            show_notice('Bonjour mode requires a host in the destination address')
             return
         if '@' not in self.target:
             self.target = '%s@%s' % (self.target, self.account.id.domain)
@@ -427,7 +427,7 @@ class OutgoingCallInitializer(object):
         try:
             self.target = SIPURI.parse(self.target)
         except SIPCoreError:
-            send_notice('Illegal SIP URI: %s' % self.target)
+            show_notice('Illegal SIP URI: %s' % self.target)
         else:
             if '.' not in self.target.host and not isinstance(self.account, BonjourAccount):
                 self.target.host = '%s.%s' % (self.target.host, self.account.id.domain)
@@ -442,7 +442,7 @@ class OutgoingCallInitializer(object):
             else:
                 uri = self.target
 
-            send_notice('DNS lookup for %s' % uri)
+            show_notice('DNS lookup for %s' % uri)
             lookup.lookup_sip_proxy(uri, settings.sip.transport_list)
 
     def handle_notification(self, notification):
@@ -459,7 +459,7 @@ class OutgoingCallInitializer(object):
         application.outgoing_session = session
 
     def _NH_DNSLookupDidFail(self, notification):
-        send_notice('Call to %s failed: DNS lookup error: %s' % (self.target, notification.data.error))
+        show_notice('Call to %s failed: DNS lookup error: %s' % (self.target, notification.data.error))
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=notification.sender)
 
@@ -471,7 +471,7 @@ class OutgoingCallInitializer(object):
         remote_identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             remote_identity = '"%s" <%s>' % (session.remote_identity.display_name, remote_identity)
-        send_notice("Initiating SIP session from '%s' to '%s' via %s..." % (local_identity, remote_identity, session.route))
+        show_notice("Initiating SIP session from '%s' to '%s' via %s..." % (local_identity, remote_identity, session.route))
         self.message_session_to = None
 
     def _NH_SIPSessionGotRingIndication(self, notification):
@@ -505,19 +505,19 @@ class OutgoingCallInitializer(object):
 
         for stream in notification.data.streams:
             if stream.type == 'audio':
-                send_notice('Audio session established using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
+                show_notice('Audio session established using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
                 if stream.ice_active:
-                    send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address,
+                    show_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address,
                                                                                                      stream.local_rtp_port,
                                                                                                      stream.local_rtp_candidate.type.lower(),
                                                                                                      stream.remote_rtp_address,
                                                                                                      stream.remote_rtp_port,
                                                                                                      stream.remote_rtp_candidate.type.lower()))
                 else:
-                    send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
+                    show_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 
         if session.remote_user_agent is not None:
-            send_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
+            show_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
 
     def _NH_SIPSessionDidFail(self, notification):
         notification_center = NotificationCenter()
@@ -535,11 +535,11 @@ class OutgoingCallInitializer(object):
             SIPApplication.voice_audio_bridge.remove(self.wave_ringtone)
             self.wave_ringtone = None
         if notification.data.failure_reason == 'user request' and notification.data.code == 487:
-            send_notice('SIP session cancelled')
+            show_notice('SIP session cancelled')
         elif notification.data.failure_reason == 'user request':
-            send_notice('SIP session rejected by user (%d %s)' % (notification.data.code, notification.data.reason))
+            show_notice('SIP session rejected by user (%d %s)' % (notification.data.code, notification.data.reason))
         else:
-            send_notice('SIP session failed: %s' % notification.data.failure_reason)
+            show_notice('SIP session failed: %s' % notification.data.failure_reason)
 
 
 class IncomingCallInitializer(object):
@@ -648,18 +648,18 @@ class IncomingCallInitializer(object):
         identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-        send_notice("SIP session with '%s' established" % identity)
+        show_notice("SIP session with '%s' established" % identity)
         for stream in notification.data.streams:
             if stream.type == 'audio':
-                send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
+                show_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
                 if stream.ice_active:
-                    send_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
+                    show_notice('Audio RTP endpoints %s:%d (ICE type %s) <-> %s:%d (ICE type %s)' % (stream.local_rtp_address, stream.local_rtp_port, stream.local_rtp_candidate_type, stream.remote_rtp_address, stream.remote_rtp_port, stream.remote_rtp_candidate_type))
                 else:
-                    send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
+                    show_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
                 if stream.encryption.active:
-                    send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
+                    show_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
         if session.remote_user_agent is not None:
-            send_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
+            show_notice('Remote SIP User Agent is "%s"' % session.remote_user_agent)
 
     def _NH_SIPSessionDidFail(self, notification):
         notification_center = NotificationCenter()
@@ -682,13 +682,13 @@ class IncomingCallInitializer(object):
             IncomingCallInitializer.tone_ringtone.stop()
             IncomingCallInitializer.tone_ringtone = None
         if notification.data.failure_reason == 'user request' and notification.data.code == 487:
-            send_notice('SIP session cancelled by user')
+            show_notice('SIP session cancelled by user')
         if notification.data.failure_reason == 'Call completed elsewhere' and notification.data.code == 487:
-            send_notice('SIP session cancelled, call was answered elsewhere')
+            show_notice('SIP session cancelled, call was answered elsewhere')
         elif notification.data.failure_reason == 'user request':
-            send_notice('SIP session rejected (%d %s)' % (notification.data.code, notification.data.reason))
+            show_notice('SIP session rejected (%d %s)' % (notification.data.code, notification.data.reason))
         else:
-            send_notice('SIP session failed: %s' % notification.data.failure_reason)
+            show_notice('SIP session failed: %s' % notification.data.failure_reason)
 
 
 class OutgoingProposalHandler(object):
@@ -716,7 +716,7 @@ class OutgoingProposalHandler(object):
         remote_identity = str(self.session.remote_identity.uri)
         if self.session.remote_identity.display_name:
             remote_identity = '"%s" <%s>' % (self.session.remote_identity.display_name, remote_identity)
-        send_notice("Proposing %s to '%s'..." % (self.stream.type, remote_identity))
+        show_notice("Proposing %s to '%s'..." % (self.stream.type, remote_identity))
 
     def handle_notification(self, notification):
         handler = getattr(self, '_NH_%s' % notification.name, Null)
@@ -727,7 +727,7 @@ class OutgoingProposalHandler(object):
         notification_center.remove_observer(self, sender=self.session)
         application = SIPSessionApplication()
         application.sessions_with_proposals.remove(notification.sender)
-        send_notice('Proposal accepted')
+        show_notice('Proposal accepted')
 
     def _NH_SIPSessionProposalRejected(self, notification):
         notification_center = NotificationCenter()
@@ -738,9 +738,9 @@ class OutgoingProposalHandler(object):
         ui = UI()
         ui.status = None
         if notification.data.code == 487:
-            send_notice('Proposal cancelled (%d %s)' % (notification.data.code, notification.data.reason))
+            show_notice('Proposal cancelled (%d %s)' % (notification.data.code, notification.data.reason))
         else:
-            send_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
+            show_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
 
     def _NH_SIPSessionDidEnd(self, notification):
         notification_center = NotificationCenter()
@@ -810,7 +810,7 @@ class IncomingProposalHandler(object):
 
         ui = UI()
         ui.status = None
-        send_notice('Proposal accepted')
+        show_notice('Proposal accepted')
 
     def _NH_SIPSessionProposalRejected(self, notification):
         notification_center = NotificationCenter()
@@ -823,9 +823,9 @@ class IncomingProposalHandler(object):
         ui = UI()
         ui.status = None
         if notification.data.code == 487:
-            send_notice('Proposal cancelled (%d %s)' % (notification.data.code, notification.data.reason))
+            show_notice('Proposal cancelled (%d %s)' % (notification.data.code, notification.data.reason))
         else:
-            send_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
+            show_notice('Proposal rejected (%d %s)' % (notification.data.code, notification.data.reason))
 
         if IncomingProposalHandler.tone_ringtone:
             IncomingProposalHandler.tone_ringtone.stop()
@@ -844,7 +844,7 @@ class IncomingProposalHandler(object):
 
         ui = UI()
         ui.status = None
-        send_notice('Proposal failed (%s)' % notification.data.failure_reason)
+        show_notice('Proposal failed (%s)' % notification.data.failure_reason)
 
     def _NH_SIPSessionDidEnd(self, notification):
         notification_center = NotificationCenter()
@@ -882,7 +882,7 @@ class OutgoingTransferHandler(object):
     @run_in_green_thread
     def start(self):
         if isinstance(self.account, BonjourAccount) and '@' not in self.target:
-            send_notice('Bonjour mode requires a host in the destination address')
+            show_notice('Bonjour mode requires a host in the destination address')
             return
         if '@' not in self.target:
             self.target = '%s@%s' % (self.target, self.account.id.domain)
@@ -891,10 +891,10 @@ class OutgoingTransferHandler(object):
         try:
             self.target = SIPURI.parse(self.target)
         except SIPCoreError:
-            send_notice('Illegal SIP URI: %s' % self.target)
+            show_notice('Illegal SIP URI: %s' % self.target)
             return
 
-        send_notice('Preparing transfer...')
+        show_notice('Preparing transfer...')
         self.file_selector = FileSelector.for_file(self.filepath)
         if '.' not in self.target.host and not isinstance(self.account, BonjourAccount):
             self.target.host = '%s.%s' % (self.target.host, self.account.id.domain)
@@ -924,9 +924,9 @@ class OutgoingTransferHandler(object):
             self.wave_ringtone = None
 
         if failure_reason is None:
-            send_notice('File transfer of %s finished' % os.path.basename(self.filepath))
+            show_notice('File transfer of %s finished' % os.path.basename(self.filepath))
         else:
-            send_notice('File transfer of %s failed: %s' % (os.path.basename(self.filepath), failure_reason))
+            show_notice('File transfer of %s failed: %s' % (os.path.basename(self.filepath), failure_reason))
 
         self.session = None
         self.stream = None
@@ -948,7 +948,7 @@ class OutgoingTransferHandler(object):
 
     def _NH_DNSLookupDidFail(self, notification):
         notification.center.remove_observer(self, sender=notification.sender)
-        send_notice('File transfer to %s failed: DNS lookup error: %s' % (self.target, notification.data.error))
+        show_notice('File transfer to %s failed: DNS lookup error: %s' % (self.target, notification.data.error))
 
     def _NH_SIPSessionNewOutgoing(self, notification):
         session = notification.sender
@@ -958,7 +958,7 @@ class OutgoingTransferHandler(object):
         remote_identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             remote_identity = '"%s" <%s>' % (session.remote_identity.display_name, remote_identity)
-        send_notice("Initiating file transfer from '%s' to '%s' via %s..." % (local_identity, remote_identity, session.route))
+        show_notice("Initiating file transfer from '%s' to '%s' via %s..." % (local_identity, remote_identity, session.route))
 
     def _NH_SIPSessionGotRingIndication(self, notification):
         settings = SIPSimpleSettings()
@@ -985,7 +985,7 @@ class OutgoingTransferHandler(object):
         identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-        send_notice("File transfer for %s to '%s' started" % (os.path.basename(self.filepath), identity))
+        show_notice("File transfer for %s to '%s' started" % (os.path.basename(self.filepath), identity))
 
     def _NH_MediaStreamDidNotInitialize(self, notification):
         self._terminate(failure_reason=notification.data.reason)
@@ -1075,9 +1075,9 @@ class IncomingTransferHandler(object):
             self.wave_ringtone.stop()
 
         if failure_reason is None:
-            send_notice('File transfer of %s finished' % os.path.basename(self.filename))
+            show_notice('File transfer of %s finished' % os.path.basename(self.filename))
         else:
-            send_notice('File transfer of %s failed: %s' % (os.path.basename(self.filename), failure_reason))
+            show_notice('File transfer of %s failed: %s' % (os.path.basename(self.filename), failure_reason))
 
         self.session = None
         self.stream = None
@@ -1132,7 +1132,7 @@ class IncomingTransferHandler(object):
         identity = str(session.remote_identity.uri)
         if session.remote_identity.display_name:
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-        send_notice("File transfer for %s with '%s' started" % (os.path.basename(self.filename), identity))
+        show_notice("File transfer for %s with '%s' started" % (os.path.basename(self.filename), identity))
 
         if IncomingTransferHandler.sessions == 1:
             if self.wave_ringtone:
@@ -1268,8 +1268,8 @@ class SIPSessionApplication(SIPApplication):
         try:
             SIPApplication.start(self, FileStorage(options.config_directory or config_directory))
         except ConfigurationError, e:
-            send_notice("Failed to load sipclient's configuration: %s\n" % str(e), bold=False)
-            send_notice("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.", bold=False)
+            show_notice("Failed to load sipclient's configuration: %s\n" % str(e), bold=False)
+            show_notice("If an old configuration file is in place, delete it or move it and recreate the configuration using the sip_settings script.", bold=False)
             ui.stop()
             self.stopped_event.set()
 
@@ -1302,11 +1302,11 @@ class SIPSessionApplication(SIPApplication):
         else:
             possible_accounts = [account for account in account_manager.iter_accounts() if self.options.account in account.id and account.enabled]
             if len(possible_accounts) > 1:
-                send_notice('More than one account exists which matches %s: %s' % (self.options.account, ', '.join(sorted(account.id for account in possible_accounts))), bold=False)
+                show_notice('More than one account exists which matches %s: %s' % (self.options.account, ', '.join(sorted(account.id for account in possible_accounts))), bold=False)
                 self.stop()
                 return
             elif len(possible_accounts) == 0:
-                send_notice('No enabled account which matches %s was found. Available and enabled accounts: %s' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))), bold=False)
+                show_notice('No enabled account which matches %s was found. Available and enabled accounts: %s' % (self.options.account, ', '.join(sorted(account.id for account in account_manager.get_accounts() if account.enabled))), bold=False)
                 self.stop()
                 return
             else:
@@ -1315,18 +1315,18 @@ class SIPSessionApplication(SIPApplication):
         if isinstance(self.account, Account):
             self.account.sip.register = True
 
-        send_notice('Using account %s' % self.account.id, bold=False)
+        show_notice('Using account %s' % self.account.id, bold=False)
         ui.prompt = Prompt(self.account.id, foreground='default')
 
         self.logger.start()
         if settings.logs.trace_sip and self.logger._siptrace_filename is not None:
-            send_notice('Logging SIP trace to file "%s"' % self.logger._siptrace_filename, bold=False)
+            show_notice('Logging SIP trace to file "%s"' % self.logger._siptrace_filename, bold=False)
         if settings.logs.trace_msrp and self.logger._msrptrace_filename is not None:
-            send_notice('Logging MSRP trace to file "%s"' % self.logger._msrptrace_filename, bold=False)
+            show_notice('Logging MSRP trace to file "%s"' % self.logger._msrptrace_filename, bold=False)
         if settings.logs.trace_pjsip and self.logger._pjsiptrace_filename is not None:
-            send_notice('Logging PJSIP trace to file "%s"' % self.logger._pjsiptrace_filename, bold=False)
+            show_notice('Logging PJSIP trace to file "%s"' % self.logger._pjsiptrace_filename, bold=False)
         if settings.logs.trace_notifications and self.logger._notifications_filename is not None:
-            send_notice('Logging notifications trace to file "%s"' % self.logger._notifications_filename, bold=False)
+            show_notice('Logging notifications trace to file "%s"' % self.logger._notifications_filename, bold=False)
 
         if self.options.disable_sound:
             settings.audio.input_device = None
@@ -1345,14 +1345,14 @@ class SIPSessionApplication(SIPApplication):
         # display a list of available devices
         self._CH_devices()
 
-        send_notice('Type /help to see a list of available commands.', bold=False)
+        show_notice('Type /help to see a list of available commands.', bold=False)
 
         if self.target is not None:
             call_initializer = OutgoingCallInitializer(self.account, self.target, audio=True)
             call_initializer.start()
 
     def _NH_SIPApplicationWillEnd(self, notification):
-        send_notice('Application will end')
+        show_notice('Application will end')
         self.ip_address_monitor.stop()
 
     def _NH_SIPApplicationDidEnd(self, notification):
@@ -1363,7 +1363,7 @@ class SIPSessionApplication(SIPApplication):
     def _NH_SIPEngineDetectedNATType(self, notification):
         SIPApplication._NH_SIPEngineDetectedNATType(self, notification)
         if notification.data.succeeded:
-            send_notice('Detected NAT type: %s' % notification.data.nat_type)
+            show_notice('Detected NAT type: %s' % notification.data.nat_type)
 
     def _NH_UIInputGotCommand(self, notification):
         handler = getattr(self, '_CH_%s' % notification.data.command, None)
@@ -1371,9 +1371,9 @@ class SIPSessionApplication(SIPApplication):
             try:
                 handler(*notification.data.args)
             except TypeError:
-                send_notice('Illegal use of command /%s. Type /help for a list of available commands.' % notification.data.command)
+                show_notice('Illegal use of command /%s. Type /help for a list of available commands.' % notification.data.command)
         else:
-            send_notice('Unknown command /%s. Type /help for a list of available commands.' % notification.data.command)
+            show_notice('Unknown command /%s. Type /help for a list of available commands.' % notification.data.command)
 
     def _NH_UIInputGotText(self, notification):
         msrp_chat = None
@@ -1407,7 +1407,7 @@ class SIPSessionApplication(SIPApplication):
                 local_identity = '%s clear text sent to %s' % (local_identity, self.message_session_to)
             
         else:
-            send_notice('No active chat or message session')
+            show_notice('No active chat or message session')
             return
 
         ui = UI()
@@ -1425,7 +1425,7 @@ class SIPSessionApplication(SIPApplication):
     def _NH_SIPEngineGotException(self, notification):
         lines = ['An exception occured within the SIP core:']
         lines.extend(notification.data.traceback.split('\n'))
-        send_notice(lines)
+        show_notice(lines)
 
     def _NH_SIPAccountRegistrationDidSucceed(self, notification):
         account = notification.sender
@@ -1436,7 +1436,7 @@ class SIPSessionApplication(SIPApplication):
             pass
         else:
             if s and notification.data.expires == 0:
-                send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
+                show_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
                 return
 
         contact_header = notification.data.contact_header
@@ -1455,7 +1455,7 @@ class SIPSessionApplication(SIPApplication):
         if account.contact.temporary_gruu is not None:
             lines.append('%s  Temporary GRUU: %s' % (now, account.contact.temporary_gruu))
 
-        send_notice(lines)
+        show_notice(lines)
 
         self.registration_succeeded[account.id] = True
 
@@ -1463,28 +1463,28 @@ class SIPSessionApplication(SIPApplication):
         account = notification.sender
         
         if self.active_session is None:
-            send_notice('%s Failed to register contact for %s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), account.id, notification.data.error, notification.data.retry_after))
+            show_notice('%s Failed to register contact for %s: %s (retrying in %.2f seconds)' % (datetime.now().replace(microsecond=0), account.id, notification.data.error, notification.data.retry_after))
         self.registration_succeeded[notification.sender.id] = False
 
     def _NH_SIPAccountRegistrationDidEnd(self, notification):
         account = notification.sender
-        send_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), account.id))
+        show_notice('%s Registration ended for %s' % (datetime.now().replace(microsecond=0), account.id))
 
     def _NH_BonjourAccountRegistrationDidSucceed(self, notification):
         pass
-        #send_notice('%s Registered Bonjour contact "%s"' % (datetime.now().replace(microsecond=0), notification.data.name))
+        #show_notice('%s Registered Bonjour contact "%s"' % (datetime.now().replace(microsecond=0), notification.data.name))
 
     def _NH_BonjourAccountRegistrationDidFail(self, notification):
-        send_notice('%s Failed to register Bonjour contact: %s' % (datetime.now().replace(microsecond=0), notification.data.reason))
+        show_notice('%s Failed to register Bonjour contact: %s' % (datetime.now().replace(microsecond=0), notification.data.reason))
 
     def _NH_BonjourAccountRegistrationDidEnd(self, notification):
         pass
-        #send_notice('%s Bonjour registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
+        #show_notice('%s Bonjour registration ended for %s' % (datetime.now().replace(microsecond=0), notification.sender.id))
 
     def _NH_BonjourAccountDidAddNeighbour(self, notification):
         neighbour, record = notification.data.neighbour, notification.data.record
         now = datetime.now().replace(microsecond=0)
-        #send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
+        #show_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
         self.neighbours[neighbour] = BonjourNeighbour(neighbour, record.uri, record.name, record.host)
 
     def _NH_BonjourAccountDidUpdateNeighbour(self, notification):
@@ -1493,10 +1493,10 @@ class SIPSessionApplication(SIPApplication):
         try:
             bonjour_neighbour = self.neighbours[neighbour]
         except KeyError:
-            #send_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
+            #show_notice('%s Discovered Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
             self.neighbours[neighbour] = BonjourNeighbour(neighbour, record.uri, record.name, record.host)
         else:
-            #send_notice('%s Updated Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
+            #show_notice('%s Updated Bonjour neighbour: "%s (%s)" <%s>' % (now, record.name, record.host, record.uri))
             bonjour_neighbour.display_name = record.name
             bonjour_neighbour.host = record.host
             bonjour_neighbour.uri = record.uri
@@ -1510,7 +1510,7 @@ class SIPSessionApplication(SIPApplication):
             pass
         else:
             pass
-            #send_notice('%s Bonjour neighbour left: "%s (%s)" <%s>' % (now, bonjour_neighbour.display_name, bonjour_neighbour.host, bonjour_neighbour.uri))
+            #show_notice('%s Bonjour neighbour left: "%s (%s)" <%s>' % (now, bonjour_neighbour.display_name, bonjour_neighbour.host, bonjour_neighbour.uri))
 
     def _NH_SIPEngineGotMessage(self, notification):
         data = notification.data
@@ -1551,7 +1551,7 @@ class SIPSessionApplication(SIPApplication):
             content_type = msg.content_type.value if msg.content_type is not None else None
             last_active = msg.last_active.value if msg.last_active is not None else None
             sender_identity = data.from_header
-            #send_notice('Is composing state=%s, refresh=%s, last_active=%s' % (state, refresh, last_active))
+            #show_notice('Is composing state=%s, refresh=%s, last_active=%s' % (state, refresh, last_active))
 
             if state == 'active':
                 if refresh is None:
@@ -1567,7 +1567,7 @@ class SIPSessionApplication(SIPApplication):
 
         if content_type != 'application/im-iscomposing+xml':
             if self.message_session_to != identity:
-                 send_notice('Message session started with %s' % identity)
+                 show_notice('Message session started with %s' % identity)
 
             self.message_session_to = identity
 
@@ -1575,15 +1575,15 @@ class SIPSessionApplication(SIPApplication):
             identity = '"%s" <%s>' % (from_header.display_name, identity)
     
         if is_composing:
-            send_notice("%s %s is composing a message" % (datetime.now().replace(microsecond=0), identity))
+            show_notice("%s %s is composing a message" % (datetime.now().replace(microsecond=0), identity))
         else:
             if encrypted:
-                send_notice("%s %s wrote: %s (%s encrypted)" % (datetime.now().replace(microsecond=0), identity, content, msg_id))
+                show_notice("%s %s wrote: %s (%s encrypted)" % (datetime.now().replace(microsecond=0), identity, content, msg_id))
             else:
                 if content.startswith('?OTR:'):
-                    send_notice("%s %s wrote a garbled message, probably encryption session must be reset using /otr command" % (datetime.now().replace(microsecond=0), identity))
+                    show_notice("%s %s wrote a garbled message, probably encryption session must be reset using /otr command" % (datetime.now().replace(microsecond=0), identity))
                 else:
-                    send_notice("%s %s wrote: %s (%s)" % (datetime.now().replace(microsecond=0), identity, content, msg_id))
+                    show_notice("%s %s wrote: %s (%s)" % (datetime.now().replace(microsecond=0), identity, content, msg_id))
 
     def _NH_SIPSessionNewIncoming(self, notification):
         session = notification.sender
@@ -1666,9 +1666,9 @@ class SIPSessionApplication(SIPApplication):
         if session.remote_identity.display_name:
             identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
         if notification.data.end_reason == 'user request':
-            send_notice('SIP session with %s ended by %s party' % (identity, notification.data.originator))
+            show_notice('SIP session with %s ended by %s party' % (identity, notification.data.originator))
         else:
-            send_notice('SIP session with %s ended due to error: %s' % (identity, notification.data.end_reason))
+            show_notice('SIP session with %s ended due to error: %s' % (identity, notification.data.end_reason))
         if session.start_time:
             duration = session.end_time - session.start_time
             seconds = duration.seconds if duration.microseconds < 500000 else duration.seconds+1
@@ -1683,7 +1683,7 @@ class SIPSessionApplication(SIPApplication):
                 duration_text = '%02d:%02d:%02d' % (hours, minutes, seconds)
         else:
             duration_text = '0s'
-        send_notice('Session duration was %s' % duration_text)
+        show_notice('Session duration was %s' % duration_text)
 
         if session in self.connected_sessions:
             self.connected_sessions.remove(session)
@@ -1696,7 +1696,7 @@ class SIPSessionApplication(SIPApplication):
                 identity = str(self.active_session.remote_identity.uri)
                 if self.active_session.remote_identity.display_name:
                     identity = '"%s" <%s>' % (self.active_session.remote_identity.display_name, identity)
-                send_notice('Active SIP session: "%s" (%d/%d)' % (identity, self.connected_sessions.index(self.active_session)+1, len(self.connected_sessions)))
+                show_notice('Active SIP session: "%s" (%d/%d)' % (identity, self.connected_sessions.index(self.active_session)+1, len(self.connected_sessions)))
             else:
                 self.active_session = None
             self._update_prompt()
@@ -1713,20 +1713,20 @@ class SIPSessionApplication(SIPApplication):
         if notification.data.on_hold:
             if notification.data.originator == 'remote':
                 if session is self.active_session:
-                    send_notice('Remote party has put the session on hold')
+                    show_notice('Remote party has put the session on hold')
                 else:
                     identity = str(session.remote_identity.uri)
                     if session.remote_identity.display_name:
                         identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-                    send_notice('%s has put the session on hold' % identity)
+                    show_notice('%s has put the session on hold' % identity)
             elif not self.ignore_local_hold:
                 if session is self.active_session:
-                    send_notice('Session was put on hold')
+                    show_notice('Session was put on hold')
                 else:
                     identity = str(session.remote_identity.uri)
                     if session.remote_identity.display_name:
                         identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-                    send_notice('Session with %s was put on hold' % identity)
+                    show_notice('Session with %s was put on hold' % identity)
             else:
                 self.ignore_local_hold = False
             if self.hold_tone is None:
@@ -1736,20 +1736,20 @@ class SIPSessionApplication(SIPApplication):
         else:
             if notification.data.originator == 'remote':
                 if session is self.active_session:
-                    send_notice('Remote party has taken the session out of hold')
+                    show_notice('Remote party has taken the session out of hold')
                 else:
                     identity = str(session.remote_identity.uri)
                     if session.remote_identity.display_name:
                         identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-                    send_notice('%s has taken the session out of hold' % identity)
+                    show_notice('%s has taken the session out of hold' % identity)
             elif not self.ignore_local_unhold:
                 if session is self.active_session:
-                    send_notice('Session was taken out of hold')
+                    show_notice('Session was taken out of hold')
                 else:
                     identity = str(session.remote_identity.uri)
                     if session.remote_identity.display_name:
                         identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
-                    send_notice('Session with %s was taken out of hold' % identity)
+                    show_notice('Session with %s was taken out of hold' % identity)
             else:
                 self.ignore_local_unhold = False
             on_hold_streams = [stream for stream in chain(*(session.streams for session in self.connected_sessions)) if stream.on_hold]
@@ -1780,7 +1780,7 @@ class SIPSessionApplication(SIPApplication):
             if session.remote_identity.display_name:
                 identity = '"%s" <%s>' % (session.remote_identity.display_name, identity)
             message = '%s in session with %s' % (message, identity)
-        send_notice(message)
+        show_notice(message)
         self._update_prompt()
 
     def _NH_AudioStreamGotDTMF(self, notification):
@@ -1791,7 +1791,7 @@ class SIPSessionApplication(SIPApplication):
         notification_center.add_observer(self, sender=wave_player)
         self.voice_audio_bridge.add(wave_player)
         wave_player.start()
-        send_notice('Got DMTF %s' % notification.data.digit)
+        show_notice('Got DMTF %s' % notification.data.digit)
 
     def _NH_RTPStreamZRTPVerifiedStateChanged(self, notification):
         self._update_prompt()
@@ -1801,32 +1801,32 @@ class SIPSessionApplication(SIPApplication):
 
     def _NH_RTPStreamDidEnableEncryption(self, notification):
         stream = notification.sender
-        send_notice("%s encryption activated using %s (%s)" % (stream.type.title(), stream.encryption.type, stream.encryption.cipher))
+        show_notice("%s encryption activated using %s (%s)" % (stream.type.title(), stream.encryption.type, stream.encryption.cipher))
 
         if stream.encryption.type == 'ZRTP':
             peer_name = stream.encryption.zrtp.peer_name if stream.encryption.zrtp.peer_name else None
-            send_notice("ZRTP secret is %s" % stream.encryption.zrtp.sas)
-            send_notice("ZRTP peer name is %s, use /zrtp_name command to change it" % (peer_name or 'not set'))
-            send_notice("ZRTP peer is %s, use /zrtp_verified command to toggle it" % ('verified' if stream.encryption.zrtp.verified else 'not verified'))
+            show_notice("ZRTP secret is %s" % stream.encryption.zrtp.sas)
+            show_notice("ZRTP peer name is %s, use /zrtp_name command to change it" % (peer_name or 'not set'))
+            show_notice("ZRTP peer is %s, use /zrtp_verified command to toggle it" % ('verified' if stream.encryption.zrtp.verified else 'not verified'))
 
         self._update_prompt()
 
     def _NH_RTPStreamDidChangeRTPParameters(self, notification):
         stream = notification.sender
-        send_notice('Audio RTP parameters changed:')
-        send_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
-        send_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
+        show_notice('Audio RTP parameters changed:')
+        show_notice('Audio stream using "%s" codec at %sHz' % (stream.codec, stream.sample_rate))
+        show_notice('Audio RTP endpoints %s:%d <-> %s:%d' % (stream.local_rtp_address, stream.local_rtp_port, stream.remote_rtp_address, stream.remote_rtp_port))
         if stream.encryption.active:
-            send_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
+            show_notice('RTP audio stream is encrypted using %s (%s)\n' % (stream.encryption.type, stream.encryption.cipher))
 
     def _NH_AudioStreamDidStartRecordingAudio(self, notification):
-        send_notice('Recording audio to %s' % notification.data.filename)
+        show_notice('Recording audio to %s' % notification.data.filename)
 
     def _NH_AudioStreamDidStopRecordingAudio(self, notification):
-        send_notice('Stopped recording audio to %s' % notification.data.filename)
+        show_notice('Stopped recording audio to %s' % notification.data.filename)
 
     def _NH_ChatStreamSMPVerificationDidStart(self, notification):
-        send_notice('OTR verification started', bold=False)
+        show_notice('OTR verification started', bold=False)
         data = notification.data
         session = self.active_session
         stream = notification.sender
@@ -1837,12 +1837,12 @@ class SIPSessionApplication(SIPApplication):
                 except StopIteration:
                     stream.encryption.smp_abort()
                 else:
-                    send_notice("OTR verification requested by remote and replied automatically using ZRTP SAS", bold=False)
+                    show_notice("OTR verification requested by remote and replied automatically using ZRTP SAS", bold=False)
                     stream.encryption.smp_answer(audio_stream.encryption.zrtp.sas)
                     self.smp_verifified_using_zrtp = True
             else:
-                send_notice("OTR verification requested by remote, reply using /otr_answer")
-                send_notice('OTR verification question: %s' % data.question)
+                show_notice("OTR verification requested by remote, reply using /otr_answer")
+                show_notice('OTR verification question: %s' % data.question)
                 self._update_prompt()
         else:
             try:
@@ -1851,7 +1851,7 @@ class SIPSessionApplication(SIPApplication):
                 pass
             else:
                 stream.encryption.smp_verify(audio_stream.encryption.zrtp.sas, question=self.smp_verification_question)
-                send_notice("OTR verification performed automatically using ZRTP SAS...", bold=False)
+                show_notice("OTR verification performed automatically using ZRTP SAS...", bold=False)
                 self._update_prompt()
 
     def _NH_ChatStreamSMPVerificationDidNotStart(self, notification):
@@ -1861,13 +1861,13 @@ class SIPSessionApplication(SIPApplication):
         data = notification.data
         stream = notification.sender
         if data.status is SMPStatus.Success:
-            send_notice("OTR verification %s" % ('succeeded' if data.same_secrets else 'failed: the secret is wrong'), bold=False)
+            show_notice("OTR verification %s" % ('succeeded' if data.same_secrets else 'failed: the secret is wrong'), bold=False)
             stream.encryption.verified = data.same_secrets
             self._update_prompt()
         elif data.status is SMPStatus.Interrupted:
-            send_notice("OTR verification aborted: %s" % data.reason, bold=False)
+            show_notice("OTR verification aborted: %s" % data.reason, bold=False)
         elif data.status is SMPStatus.ProtocolError:
-            send_notice("OTR verification error: %s" % data.reason, bold=False)
+            show_notice("OTR verification error: %s" % data.reason, bold=False)
             if data.reason == 'startup collision':
                 self.smp_verification_tries -= 1
                 self.smp_verification_delay *= 2
@@ -1876,7 +1876,7 @@ class SIPSessionApplication(SIPApplication):
                     pass
 
     def _NH_ChatStreamOTRError(self, notification):
-        send_notice("Chat encryption error: %s", notification.data.error, bold=False)
+        show_notice("Chat encryption error: %s", notification.data.error, bold=False)
 
     def _NH_ChatStreamOTRVerifiedStateChanged(self, notification):
         self._update_prompt()
@@ -1887,19 +1887,19 @@ class SIPSessionApplication(SIPApplication):
         if data.new_state is OTRState.Encrypted:
             local_fingerprint = stream.encryption.key_fingerprint.encode('hex').upper()
             remote_fingerprint = stream.encryption.peer_fingerprint.encode('hex').upper()
-            send_notice("Chat encryption activated using OTR protocol", bold=False)
-            send_notice("OTR local fingerprint %s" % local_fingerprint, bold=False)
-            send_notice("OTR remote fingerprint %s" % remote_fingerprint, bold=False)
+            show_notice("Chat encryption activated using OTR protocol", bold=False)
+            show_notice("OTR local fingerprint %s" % local_fingerprint, bold=False)
+            show_notice("OTR remote fingerprint %s" % remote_fingerprint, bold=False)
 
             if stream.encryption.verified:
-                send_notice("OTR remote fingerprint has been verified", bold=False)
+                show_notice("OTR remote fingerprint has been verified", bold=False)
             else:
-                send_notice("OTR remote fingerprint has not yet been verified", bold=False)
+                show_notice("OTR remote fingerprint has not yet been verified", bold=False)
 
         elif data.new_state is OTRState.Finished:
-            send_notice("Chat encryption deactivated", bold=False)
+            show_notice("Chat encryption deactivated", bold=False)
         elif data.new_state is OTRState.Plaintext:
-            send_notice("Chat encryption deactivated", bold=False)
+            show_notice("Chat encryption deactivated", bold=False)
 
         self._update_prompt()
 
@@ -1919,11 +1919,11 @@ class SIPSessionApplication(SIPApplication):
     def _NH_DefaultAudioDeviceDidChange(self, notification):
         SIPApplication._NH_DefaultAudioDeviceDidChange(self, notification)
         if notification.data.changed_input and self.voice_audio_mixer.input_device=='system_default':
-            send_notice('Switched default input device to: %s' % self.voice_audio_mixer.real_input_device)
+            show_notice('Switched default input device to: %s' % self.voice_audio_mixer.real_input_device)
         if notification.data.changed_output and self.voice_audio_mixer.output_device=='system_default':
-            send_notice('Switched default output device to: %s' % self.voice_audio_mixer.real_output_device)
+            show_notice('Switched default output device to: %s' % self.voice_audio_mixer.real_output_device)
         if notification.data.changed_output and self.alert_audio_mixer.output_device=='system_default':
-            send_notice('Switched alert device to: %s' % self.alert_audio_mixer.real_output_device)
+            show_notice('Switched alert device to: %s' % self.alert_audio_mixer.real_output_device)
 
     def _NH_AudioDevicesDidChange(self, notification):
         old_devices = set(notification.data.old_devices)
@@ -1937,41 +1937,41 @@ class SIPSessionApplication(SIPApplication):
         SIPApplication._NH_AudioDevicesDidChange(self, notification)
 
         if added_devices:
-            send_notice('Added audio device(s): %s' % ', '.join(sorted(added_devices)))
+            show_notice('Added audio device(s): %s' % ', '.join(sorted(added_devices)))
         if removed_devices:
-            send_notice('Removed audio device(s): %s' % ', '.join(sorted(removed_devices)))
+            show_notice('Removed audio device(s): %s' % ', '.join(sorted(removed_devices)))
         if changed_input_device:
-            send_notice('Input device has been switched to: %s' % self.voice_audio_mixer.real_input_device)
+            show_notice('Input device has been switched to: %s' % self.voice_audio_mixer.real_input_device)
         if changed_output_device:
-            send_notice('Output device has been switched to: %s' % self.voice_audio_mixer.real_output_device)
+            show_notice('Output device has been switched to: %s' % self.voice_audio_mixer.real_output_device)
         if changed_alert_device:
-            send_notice('Alert device has been switched to: %s' % self.alert_audio_mixer.real_output_device)
+            show_notice('Alert device has been switched to: %s' % self.alert_audio_mixer.real_output_device)
 
     def _NH_WavePlayerDidEnd(self, notification):
         notification_center = NotificationCenter()
         notification_center.remove_observer(self, sender=notification.sender)
 
     def _NH_RTPStreamICENegotiationDidSucceed(self, notification):
-        send_notice(" ")
-        send_notice("ICE negotiation succeeded in %s" % notification.data.duration)
+        show_notice(" ")
+        show_notice("ICE negotiation succeeded in %s" % notification.data.duration)
         if self.rtp_statistics:
-            send_notice(" ")
-            send_notice("Local ICE candidates:")
+            show_notice(" ")
+            show_notice("Local ICE candidates:")
             for candidate in notification.data.local_candidates:
-                send_notice(str(candidate))
-            send_notice(" ")
-            send_notice("Remote ICE candidates:")
+                show_notice(str(candidate))
+            show_notice(" ")
+            show_notice("Remote ICE candidates:")
             for candidate in notification.data.remote_candidates:
-                send_notice(str(candidate))
-            send_notice(" ")
-            send_notice("ICE connectivity valid pairs:")
+                show_notice(str(candidate))
+            show_notice(" ")
+            show_notice("ICE connectivity valid pairs:")
             for check in notification.data.valid_pairs:
-                send_notice(str(check))
-            send_notice(" ")
+                show_notice(str(check))
+            show_notice(" ")
 
     def _NH_RTPStreamICENegotiationDidFail(self, notification):
-        send_notice("\n")
-        send_notice("ICE negotiation failed: %s" % notification.data.reason)
+        show_notice("\n")
+        show_notice("ICE negotiation failed: %s" % notification.data.reason)
 
     # command handlers
     #
@@ -1979,7 +1979,7 @@ class SIPSessionApplication(SIPApplication):
 
     def _CH_call(self, target):
         if self.outgoing_session is not None:
-            send_notice('Please cancel any outgoing sessions before makeing any new ones')
+            show_notice('Please cancel any outgoing sessions before makeing any new ones')
             return
         call_initializer = OutgoingCallInitializer(self.account, target, audio=True, chat=True)
         call_initializer.start()
@@ -1988,14 +1988,14 @@ class SIPSessionApplication(SIPApplication):
         if chat_option and chat_option != '+chat':
             raise TypeError()
         if self.outgoing_session is not None:
-            send_notice('Please cancel any outgoing sessions before makeing any new ones')
+            show_notice('Please cancel any outgoing sessions before makeing any new ones')
             return
         call_initializer = OutgoingCallInitializer(self.account, target, audio=True, chat=chat_option=='+chat')
         call_initializer.start()
 
     def _CH_message(self, target=None):
         if not target:
-            send_notice('Usage: /message user@domain')
+            show_notice('Usage: /message user@domain')
         
         try:
             SIPURI.parse('sip:%s' % target)
@@ -2003,13 +2003,13 @@ class SIPSessionApplication(SIPApplication):
                 message_session = self.message_session(target)
             self.message_session_to = target
         except SIPCoreError:
-            send_notice('Invalid SIP URI %s' % target)
+            show_notice('Invalid SIP URI %s' % target)
 
     def _CH_chat(self, target, audio_option=None):
         if audio_option and audio_option != '+audio':
             raise TypeError()
         if self.outgoing_session is not None:
-            send_notice('Please cancel any outgoing sessions before makeing any new ones')
+            show_notice('Please cancel any outgoing sessions before makeing any new ones')
             return
         call_initializer = OutgoingCallInitializer(self.account, target, audio=audio_option=='+audio', chat=True)
         call_initializer.start()
@@ -2031,7 +2031,7 @@ class SIPSessionApplication(SIPApplication):
             identity = str(self.active_session.remote_identity.uri)
             if self.active_session.remote_identity.display_name:
                 identity = '"%s" <%s>' % (self.active_session.remote_identity.display_name, identity)
-            send_notice('Active SIP session: "%s" (%d/%d)' % (identity, self.connected_sessions.index(self.active_session)+1, len(self.connected_sessions)))
+            show_notice('Active SIP session: "%s" (%d/%d)' % (identity, self.connected_sessions.index(self.active_session)+1, len(self.connected_sessions)))
             self._update_prompt()
 
     def _CH_prev(self):
@@ -2044,7 +2044,7 @@ class SIPSessionApplication(SIPApplication):
             identity = str(self.active_session.remote_identity.uri)
             if self.active_session.remote_identity.display_name:
                 identity = '"%s" <%s>' % (self.active_session.remote_identity.display_name, identity)
-            send_notice('Active SIP session: "%s" (%d/%d)' % (identity, self.connected_sessions.index(self.active_session)+1, len(self.connected_sessions)))
+            show_notice('Active SIP session: "%s" (%d/%d)' % (identity, self.connected_sessions.index(self.active_session)+1, len(self.connected_sessions)))
             self._update_prompt()
 
     def _CH_sessions(self):
@@ -2057,18 +2057,18 @@ class SIPSessionApplication(SIPApplication):
                 lines.append('  SIP session with %s (%d/%d) - %s' % (identity, self.connected_sessions.index(session)+1, len(self.connected_sessions), 'active' if session is self.active_session else 'on hold'))
             if len(self.connected_sessions) > 1:
                 lines.append('Use the /next and /prev commands to switch the active session')
-            send_notice(lines)
+            show_notice(lines)
         else:
-            send_notice('There are no connected sessions')
+            show_notice('There are no connected sessions')
 
     def _CH_neighbours(self):
         if not isinstance(self.account, BonjourAccount):
-            send_notice('This command is only available if using the Bonjour account')
+            show_notice('This command is only available if using the Bonjour account')
             return
         lines = ['Bonjour neighbours:']
         for key, neighbour in self.neighbours.iteritems():
             lines.append(' "%s (%s)" <%s>' % (neighbour.display_name, neighbour.host, neighbour.uri))
-        send_notice(lines)
+        show_notice(lines)
 
     def _CH_trace(self, *types):
         if not types:
@@ -2077,7 +2077,7 @@ class SIPSessionApplication(SIPApplication):
             lines.append('MSRP tracing to console is now %s' % ('active' if self.logger.msrp_to_stdout else 'inactive'))
             lines.append('PJSIP tracing to console is now %s' % ('active' if self.logger.pjsip_to_stdout else 'inactive'))
             lines.append('Notification tracing to console is now %s' % ('active' if self.logger.notifications_to_stdout else 'inactive'))
-            send_notice(lines)
+            show_notice(lines)
             return
 
         add_types = [type[1:] for type in types if type[0] == '+']
@@ -2089,38 +2089,38 @@ class SIPSessionApplication(SIPApplication):
         if 'sip' in add_types or ('sip' in toggle_types and not self.logger.sip_to_stdout):
             self.logger.sip_to_stdout = True
             settings.logs.trace_sip = True
-            send_notice('SIP tracing to console is now activated')
+            show_notice('SIP tracing to console is now activated')
         elif 'sip' in remove_types or ('sip' in toggle_types and self.logger.sip_to_stdout):
             self.logger.sip_to_stdout = False
             settings.logs.trace_sip = False
-            send_notice('SIP tracing to console is now deactivated')
+            show_notice('SIP tracing to console is now deactivated')
 
         if 'msrp' in add_types or ('msrp' in toggle_types and not self.logger.msrp_to_stdout):
             self.logger.msrp_to_stdout = True
             settings.logs.trace_msrp = True
-            send_notice('MSRP tracing to console is now activated')
+            show_notice('MSRP tracing to console is now activated')
         elif 'msrp' in remove_types or ('msrp' in toggle_types and self.logger.msrp_to_stdout):
             self.logger.msrp_to_stdout = False
             settings.logs.trace_msrp = False
-            send_notice('MSRP tracing to console is now deactivated')
+            show_notice('MSRP tracing to console is now deactivated')
 
         if 'pjsip' in add_types or ('pjsip' in toggle_types and not self.logger.pjsip_to_stdout):
             self.logger.pjsip_to_stdout = True
             settings.logs.trace_pjsip = True
-            send_notice('PJSIP tracing to console is now activated')
+            show_notice('PJSIP tracing to console is now activated')
         elif 'pjsip' in remove_types or ('pjsip' in toggle_types and self.logger.pjsip_to_stdout):
             self.logger.pjsip_to_stdout = False
             settings.logs.trace_pjsip = False
-            send_notice('PJSIP tracing to console is now deactivated')
+            show_notice('PJSIP tracing to console is now deactivated')
 
         if 'notifications' in add_types or ('notifications' in toggle_types and not self.logger.notifications_to_stdout):
             self.logger.notifications_to_stdout = True
             settings.logs.trace_notifications = True
-            send_notice('Notification tracing to console is now activated')
+            show_notice('Notification tracing to console is now activated')
         elif 'notifications' in remove_types or ('notifications' in toggle_types and self.logger.notifications_to_stdout):
             self.logger.notifications_to_stdout = False
             settings.logs.trace_notifications = False
-            send_notice('Notification tracing to console is now deactivated')
+            show_notice('Notification tracing to console is now deactivated')
 
         settings.save()
 
@@ -2138,11 +2138,11 @@ class SIPSessionApplication(SIPApplication):
         if new_state:
             self.rtp_statistics = RTPStatisticsThread()
             self.rtp_statistics.start()
-            send_notice('Output of RTP statistics and ICE negotiation results on console is now activated')
+            show_notice('Output of RTP statistics and ICE negotiation results on console is now activated')
         else:
             self.rtp_statistics.stop()
             self.rtp_statistics = None
-            send_notice('Output of RTP statistics and ICE negotiation results on console is now dectivated')
+            show_notice('Output of RTP statistics and ICE negotiation results on console is now dectivated')
 
     def _CH_mute(self, state='toggle'):
         if state == 'toggle':
@@ -2151,7 +2151,7 @@ class SIPSessionApplication(SIPApplication):
             self.voice_audio_mixer.muted = True
         elif state == 'off':
             self.voice_audio_mixer.muted = False
-        send_notice('The microphone is now %s' % ('muted' if self.voice_audio_mixer.muted else 'unmuted'))
+        show_notice('The microphone is now %s' % ('muted' if self.voice_audio_mixer.muted else 'unmuted'))
 
     def _CH_input(self, device=None):
         engine = Engine()
@@ -2167,29 +2167,29 @@ class SIPSessionApplication(SIPApplication):
             try:
                 self.voice_audio_mixer.set_sound_devices(new_input_device, self.voice_audio_mixer.output_device, tail_length)
             except SIPCoreError, e:
-                send_notice('Failed to set input device to %s: %s' % (new_input_device, str(e)))
+                show_notice('Failed to set input device to %s: %s' % (new_input_device, str(e)))
             else:
                 if new_input_device == u'system_default':
-                    send_notice('Input device changed to %s (system default device)' % self.voice_audio_mixer.real_input_device)
+                    show_notice('Input device changed to %s (system default device)' % self.voice_audio_mixer.real_input_device)
                 else:
-                    send_notice('Input device changed to %s' % new_input_device)
+                    show_notice('Input device changed to %s' % new_input_device)
         else:
             device = device.decode(sys.getfilesystemencoding())
             if device == u'None':
                 device = None
             elif device not in input_devices:
-                send_notice('Unknown input device %s. Type /devices to see a list of available devices' % device)
+                show_notice('Unknown input device %s. Type /devices to see a list of available devices' % device)
                 return
             tail_length = settings.audio.echo_canceller.tail_length if settings.audio.echo_canceller.enabled else 0
             try:
                 self.voice_audio_mixer.set_sound_devices(device, self.voice_audio_mixer.output_device, self.voice_audio_mixer.tail_length)
             except SIPCoreError, e:
-                send_notice('Failed to set input device to %s: %s' % (device, str(e)))
+                show_notice('Failed to set input device to %s: %s' % (device, str(e)))
             else:
                 if device == u'system_default':
-                    send_notice('Input device changed to %s (system default device)' % self.voice_audio_mixer.real_input_device)
+                    show_notice('Input device changed to %s (system default device)' % self.voice_audio_mixer.real_input_device)
                 else:
-                    send_notice('Input device changed to %s' % device)
+                    show_notice('Input device changed to %s' % device)
 
     def _CH_output(self, device=None):
         engine = Engine()
@@ -2205,29 +2205,29 @@ class SIPSessionApplication(SIPApplication):
             try:
                 self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, new_output_device, tail_length)
             except SIPCoreError, e:
-                send_notice('Failed to set output device to %s: %s' % (new_output_device, str(e)))
+                show_notice('Failed to set output device to %s: %s' % (new_output_device, str(e)))
             else:
                 if new_output_device == u'system_default':
-                    send_notice('Output device changed to %s (system default device)' % self.voice_audio_mixer.real_output_device)
+                    show_notice('Output device changed to %s (system default device)' % self.voice_audio_mixer.real_output_device)
                 else:
-                    send_notice('Output device changed to %s' % new_output_device)
+                    show_notice('Output device changed to %s' % new_output_device)
         else:
             device = device.decode(sys.getfilesystemencoding())
             if device == u'None':
                 device = None
             elif device not in output_devices:
-                send_notice('Unknown output device %s. Type /devices to see a list of available devices' % device)
+                show_notice('Unknown output device %s. Type /devices to see a list of available devices' % device)
                 return
             tail_length = settings.audio.echo_canceller.tail_length if settings.audio.echo_canceller.enabled else 0
             try:
                 self.voice_audio_mixer.set_sound_devices(self.voice_audio_mixer.input_device, device, tail_length)
             except SIPCoreError, e:
-                send_notice('Failed to set output device to %s: %s' % (device, str(e)))
+                show_notice('Failed to set output device to %s: %s' % (device, str(e)))
             else:
                 if device == u'system_default':
-                    send_notice('Output device changed to %s (system default device)' % self.voice_audio_mixer.real_output_device)
+                    show_notice('Output device changed to %s (system default device)' % self.voice_audio_mixer.real_output_device)
                 else:
-                    send_notice('Output device changed to %s' % device)
+                    show_notice('Output device changed to %s' % device)
 
     def _CH_alert(self, device=None):
         engine = Engine()
@@ -2244,46 +2244,46 @@ class SIPSessionApplication(SIPApplication):
                 self.alert_audio_mixer.set_sound_devices(self.alert_audio_mixer.input_device, new_output_device, tail_length)
             except SIPCoreError, e:
                 old_output_device = new_output_device
-                send_notice('Failed to set alert device to %s: %s' % (new_output_device, str(e)))
+                show_notice('Failed to set alert device to %s: %s' % (new_output_device, str(e)))
             else:
                 if new_output_device == u'system_default':
-                    send_notice('Alert device changed to %s (system default device)' % self.alert_audio_mixer.real_output_device)
+                    show_notice('Alert device changed to %s (system default device)' % self.alert_audio_mixer.real_output_device)
                 else:
-                    send_notice('Alert device changed to %s' % new_output_device)
+                    show_notice('Alert device changed to %s' % new_output_device)
         else:
             device = device.decode(sys.getfilesystemencoding())
             if device == u'None':
                 device = None
             elif device not in output_devices:
-                send_notice('Unknown output device %s. Type /devices to see a list of available devices' % device)
+                show_notice('Unknown output device %s. Type /devices to see a list of available devices' % device)
                 return
             tail_length = settings.audio.echo_canceller.tail_length if settings.audio.echo_canceller.enabled else 0
             try:
                 self.alert_audio_mixer.set_sound_devices(self.alert_audio_mixer.input_device, device, tail_length)
             except SIPCoreError, e:
-                send_notice('Failed to set alert device to %s: %s' % (device, str(e)))
+                show_notice('Failed to set alert device to %s: %s' % (device, str(e)))
             else:
                 if device == u'system_default':
-                    send_notice('Alert device changed to %s (system default device)' % self.alert_audio_mixer.real_output_device)
+                    show_notice('Alert device changed to %s (system default device)' % self.alert_audio_mixer.real_output_device)
                 else:
-                    send_notice('Alert device changed to %s' % device)
+                    show_notice('Alert device changed to %s' % device)
 
     def _CH_devices(self):
         engine = Engine()
-        send_notice('Available audio input devices: %s' % ', '.join(['None', 'system_default'] + sorted(engine.input_devices)), bold=False)
-        send_notice('Available audio output devices: %s' % ', '.join(['None', 'system_default'] + sorted(engine.output_devices)), bold=False)
+        show_notice('Available audio input devices: %s' % ', '.join(['None', 'system_default'] + sorted(engine.input_devices)), bold=False)
+        show_notice('Available audio output devices: %s' % ', '.join(['None', 'system_default'] + sorted(engine.output_devices)), bold=False)
         if self.voice_audio_mixer.input_device == 'system_default':
-            send_notice('Using audio input device: %s (system default device)' % self.voice_audio_mixer.real_input_device, bold=False)
+            show_notice('Using audio input device: %s (system default device)' % self.voice_audio_mixer.real_input_device, bold=False)
         else:
-            send_notice('Using audio input device: %s' % self.voice_audio_mixer.input_device, bold=False)
+            show_notice('Using audio input device: %s' % self.voice_audio_mixer.input_device, bold=False)
         if self.voice_audio_mixer.output_device == 'system_default':
-            send_notice('Using audio output device: %s (system default device)' % self.voice_audio_mixer.real_output_device, bold=False)
+            show_notice('Using audio output device: %s (system default device)' % self.voice_audio_mixer.real_output_device, bold=False)
         else:
-            send_notice('Using audio output device: %s' % self.voice_audio_mixer.output_device, bold=False)
+            show_notice('Using audio output device: %s' % self.voice_audio_mixer.output_device, bold=False)
         if self.alert_audio_mixer.output_device == 'system_default':
-            send_notice('Using audio alert device: %s (system default device)' % self.alert_audio_mixer.real_output_device, bold=False)
+            show_notice('Using audio alert device: %s (system default device)' % self.alert_audio_mixer.real_output_device, bold=False)
         else:
-            send_notice('Using audio alert device: %s' % self.alert_audio_mixer.output_device, bold=False)
+            show_notice('Using audio alert device: %s' % self.alert_audio_mixer.output_device, bold=False)
 
     def _CH_help(self):
         self._print_help()
@@ -2308,10 +2308,10 @@ class SIPSessionApplication(SIPApplication):
 
     def _CH_hangup(self):
         if self.active_session is not None:
-            send_notice('Ending SIP session...')
+            show_notice('Ending SIP session...')
             self.active_session.end()
         elif self.outgoing_session is not None:
-            send_notice('Cancelling SIP session...')
+            show_notice('Cancelling SIP session...')
             self.outgoing_session.end()
         else:
             try:
@@ -2323,7 +2323,7 @@ class SIPSessionApplication(SIPApplication):
                 try:  
                     self.message_sessions.remove(message_session)
                 except KeyError:
-                    send_notice('Message session not found')
+                    show_notice('Message session not found')
                     pass
 
     @run_in_green_thread
@@ -2355,7 +2355,7 @@ class SIPSessionApplication(SIPApplication):
             elif state == 'off':
                 new_state = False
             else:
-                send_notice('Illegal argument to /record. Type /help for a list of available commands.')
+                show_notice('Illegal argument to /record. Type /help for a list of available commands.')
                 return
             if new_state:
                 settings = SIPSimpleSettings()
@@ -2372,7 +2372,7 @@ class SIPSessionApplication(SIPApplication):
         account_manager = AccountManager()
 
         if not args or args[0] == 'list':
-            send_notice('Accounts available: %s' % ", ".join(account.id for account in account_manager.iter_accounts() if account != self.account and account.enabled))
+            show_notice('Accounts available: %s' % ", ".join(account.id for account in account_manager.iter_accounts() if account != self.account and account.enabled))
 
         elif args and args[0] == 'register':
             if not self.account.sip.register:
@@ -2390,37 +2390,37 @@ class SIPSessionApplication(SIPApplication):
                 display_name = " ".join(args[4:])
 
                 if not "@" in email:
-                    send_notice('Email address is not valid, must be user@domain')
+                    show_notice('Email address is not valid, must be user@domain')
                     return
                     
                 if not display_name:
-                    send_notice('Please specify a display name')
+                    show_notice('Please specify a display name')
                     return
 
                 sip_address = '%s@%s' % (username, settings.enrollment.default_domain)
                 if account_manager.has_account(sip_address):
-                    send_notice('Account %s is already defined' % sip_address)
+                    show_notice('Account %s is already defined' % sip_address)
                     return
             except IndexError:
-                send_notice('To enroll an account you must provide: username password email display_name')
+                show_notice('To enroll an account you must provide: username password email display_name')
                 return
             else:
                 data = self.enroll(username, password, email, display_name)
 
                 if data['error']:
-                    send_notice(data['error'])
+                    show_notice(data['error'])
                 else:
-                    send_notice('Account %s created' % data['sip_address'])
+                    show_notice('Account %s created' % data['sip_address'])
 
         elif args:
             new_account = args[0]
             possible_accounts = [account for account in account_manager.iter_accounts() if new_account in account.id and account.enabled]
             if len(possible_accounts) > 1:
-                send_notice('More than one account exists which matches %s: %s' % (new_account, ', '.join(sorted(account.id for account in possible_accounts))), bold=False)
+                show_notice('More than one account exists which matches %s: %s' % (new_account, ', '.join(sorted(account.id for account in possible_accounts))), bold=False)
             elif len(possible_accounts) == 0:
-                send_notice('No enabled account which matches %s was found. Available and enabled accounts: %s' % (self.options.account, ', '.join(sorted(possible_accounts))), bold=False)
+                show_notice('No enabled account which matches %s was found. Available and enabled accounts: %s' % (self.options.account, ', '.join(sorted(possible_accounts))), bold=False)
             elif possible_accounts[0] == self.account:
-                send_notice('Same account selected')
+                show_notice('Same account selected')
             elif possible_accounts[0] != self.account:
                 self.switch_account(possible_accounts[0])
 
@@ -2432,7 +2432,7 @@ class SIPSessionApplication(SIPApplication):
         self.registration_succeeded[self.account.id] = False
 
         self.account = account
-        send_notice('Switching account to %s' % self.account.id)
+        show_notice('Switching account to %s' % self.account.id)
 
         notification_center = NotificationCenter()
         notification_center.add_observer(self, sender=account)
@@ -2459,7 +2459,7 @@ class SIPSessionApplication(SIPApplication):
         try:
             r = requests.post(settings.enrollment.url, timeout=5, data=post_data)
             settings = SIPSimpleSettings()
-            send_notice("Enrollment request sent to %s" % settings.enrollment.url)
+            show_notice("Enrollment request sent to %s" % settings.enrollment.url)
 
             if r.status_code == 200:
                 body = r.json()
@@ -2512,10 +2512,10 @@ class SIPSessionApplication(SIPApplication):
                 return
             
             if message_session.encryption.active:
-                send_notice("Message encryption will stop")
+                show_notice("Message encryption will stop")
                 message_session.encryption.stop()
             else:
-                send_notice("Message encryption will start")
+                show_notice("Message encryption will start")
                 message_session.encryption.start()
             
             return
@@ -2525,20 +2525,20 @@ class SIPSessionApplication(SIPApplication):
         if chat_stream is None:
             return
         if chat_stream.encryption.active:
-            send_notice("Chat encryption will stop")
+            show_notice("Chat encryption will stop")
             chat_stream.encryption.stop()
         else:
-            send_notice("Chat encryption will start")
+            show_notice("Chat encryption will start")
             chat_stream.encryption.start()
 
     def _CH_otr_secret(self, *args):
         secret = " ".join(args) if args else None
         if secret is None and self.smp_secret:
-            send_notice("OTR secret answer is: %s" % self.smp_secret)
+            show_notice("OTR secret answer is: %s" % self.smp_secret)
             return
 
         self.smp_secret = secret
-        send_notice("OTR secret answer is now set to: %s" % secret)
+        show_notice("OTR secret answer is now set to: %s" % secret)
 
     def _CH_otr_answer(self, *args):
         answer = " ".join(args) if args else None
@@ -2547,7 +2547,7 @@ class SIPSessionApplication(SIPApplication):
             message_session = self.message_session(self.message_session_to)
             
             if not message_session:
-                send_notice("OTR functions can be used only during active chat sessions")
+                show_notice("OTR functions can be used only during active chat sessions")
                 return
 
             message_session.encryption.smp_answer(answer)
@@ -2555,7 +2555,7 @@ class SIPSessionApplication(SIPApplication):
         chat_stream = next((stream for stream in self.active_session.streams if stream.type == 'chat'), None)
         
         if chat_stream is None:
-            send_notice("OTR functions can be used only during active chat sessions")
+            show_notice("OTR functions can be used only during active chat sessions")
             return
             
         if answer:
@@ -2568,11 +2568,11 @@ class SIPSessionApplication(SIPApplication):
             message_session = self.message_session(self.message_session_to)
 
             if not message_session:
-                send_notice("OTR functions can be used only during active chat sessions")
+                show_notice("OTR functions can be used only during active chat sessions")
                 return
 
             if question:
-                send_notice("OTR SMP verification question will be asked: %s" % question)
+                show_notice("OTR SMP verification question will be asked: %s" % question)
                 message_session.encryption.verified = False
                 message_session.encryption.smp_verify(self.smp_secret, question=question)
                 
@@ -2582,40 +2582,40 @@ class SIPSessionApplication(SIPApplication):
         audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
                 
         if chat_stream is None:
-            send_notice("OTR functions can be used only during active chat sessions")
+            show_notice("OTR functions can be used only during active chat sessions")
             return
             
         if self.smp_secret is None:
-            send_notice("First set the SMP secret answer using /otr_secret command")
+            show_notice("First set the SMP secret answer using /otr_secret command")
             return
          
         if question:
-            send_notice("OTR SMP verification question will be asked: %s" % question)
+            show_notice("OTR SMP verification question will be asked: %s" % question)
             chat_stream.encryption.verified = False
             chat_stream.encryption.smp_verify(self.smp_secret, question=question)
 
     def _CH_zrtp_verified(self):
         if self.active_session is None:
-            send_notice("ZRTP functions can be used only during active audio sessions")
+            show_notice("ZRTP functions can be used only during active audio sessions")
             return
 
         audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
         
         if audio_stream is None:
-            send_notice("ZRTP functions can be used only during active audio sessions")
+            show_notice("ZRTP functions can be used only during active audio sessions")
             return
             
         audio_stream.encryption.zrtp.verified = not audio_stream.encryption.zrtp.verified
 
     def _CH_zrtp_name(self, *args):
         if self.active_session is None:
-            send_notice("ZRTP functions can be used only during active audio sessions")
+            show_notice("ZRTP functions can be used only during active audio sessions")
             return
 
         audio_stream = next((stream for stream in self.active_session.streams if stream.type == 'audio'), None)
         
         if audio_stream is None:
-            send_notice("ZRTP functions can be used only during active audio sessions")
+            show_notice("ZRTP functions can be used only during active audio sessions")
             return
             
         peer_name = " ".join(args) if args else None
@@ -2631,7 +2631,7 @@ class SIPSessionApplication(SIPApplication):
             elif state == 'off':
                 new_state = False
             else:
-                send_notice('Illegal argument to /hold. Type /help for a list of available commands.')
+                show_notice('Illegal argument to /hold. Type /help for a list of available commands.')
                 return
             if new_state:
                 self.active_session.hold()
@@ -2640,67 +2640,67 @@ class SIPSessionApplication(SIPApplication):
 
     def _CH_add(self, stream_name):
         if self.active_session is None:
-            send_notice('There is no active session')
+            show_notice('There is no active session')
             return
         if stream_name in (stream.type for stream in self.active_session.streams):
-            send_notice('The active session already has a %s stream' % stream_name)
+            show_notice('The active session already has a %s stream' % stream_name)
             return
         proposal_handler = OutgoingProposalHandler(self.active_session, **{stream_name: True})
         try:
             proposal_handler.start()
         except IllegalStateError:
-            send_notice('Cannot add a stream while another transaction is in progress')
+            show_notice('Cannot add a stream while another transaction is in progress')
 
     def _CH_remove(self, stream_name):
         if self.active_session is None:
-            send_notice('There is no active session')
+            show_notice('There is no active session')
             return
         try:
             stream = (stream for stream in self.active_session.streams if stream.type==stream_name).next()
         except StopIteration:
-            send_notice('The current active session does not have any %s streams' % stream_name)
+            show_notice('The current active session does not have any %s streams' % stream_name)
         else:
             try:
                 self.active_session.remove_stream(stream)
             except IllegalStateError:
-                send_notice('Cannot remove a stream while another transaction is in progress')
+                show_notice('Cannot remove a stream while another transaction is in progress')
 
     def _CH_add_participant(self, uri):
         if self.active_session is None:
-            send_notice('There is no active session')
+            show_notice('There is no active session')
             return
         if re.match('^(sip:|sips:)', uri) is None:
             uri = 'sip:%s' % uri
         try:
             uri = SIPURI.parse(uri)
         except SIPCoreError:
-            send_notice('Invalid SIP URI')
+            show_notice('Invalid SIP URI')
         else:
             self.active_session.conference.add_participant(uri)
 
     def _CH_remove_participant(self, uri):
         if self.active_session is None:
-            send_notice('There is no active session')
+            show_notice('There is no active session')
             return
         if re.match('^(sip:|sips:)', uri) is None:
             uri = 'sip:%s' % uri
         try:
             uri = SIPURI.parse(uri)
         except SIPCoreError:
-            send_notice('Invalid SIP URI')
+            show_notice('Invalid SIP URI')
         else:
             self.active_session.conference.remove_participant(uri)
 
     def _CH_transfer(self, uri):
         if self.active_session is None:
-            send_notice('There is no active session')
+            show_notice('There is no active session')
             return
         if re.match('^(sip:|sips:)', uri) is None:
             uri = 'sip:%s' % uri
         try:
             uri = SIPURI.parse(uri)
         except SIPCoreError:
-            send_notice('Invalid SIP URI')
+            show_notice('Invalid SIP URI')
         else:
             self.active_session.transfer(uri)
 
@@ -2713,7 +2713,7 @@ class SIPSessionApplication(SIPApplication):
             try:
                 chat_stream.set_local_nickname(nickname)
             except Exception, e:
-                send_notice('Error setting nickname: %s' % e)
+                show_notice('Error setting nickname: %s' % e)
 
     # private methods
     #
@@ -2757,10 +2757,10 @@ class SIPSessionApplication(SIPApplication):
         lines.append('  /remove_participant {user@domain}: remove the specified user from the conference')
         lines.append('  /transfer {user@domain}: transfer (using blind transfer) callee to the specified destination')
         lines.append('  /nickname nick: set the user nickname whithin a conference')
-        send_notice(lines, bold=False)
+        show_notice(lines, bold=False)
 
     def _update_prompt(self):
-        send_notice('Update prompt')
+        show_notice('Update prompt')
         ui = UI()
         session = self.active_session
         if session is None:
