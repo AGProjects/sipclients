@@ -1,3 +1,14 @@
+sipclients (3.5.6) unstable; urgency=medium
+
+  * Added SIP message support for sip-session script
+  * Added OTR encryption for SIP MESSAGE sessions to sip-session
+  * Display GRUU URIs in sip-session and sip-register
+  * Fixed logging when registration ended in sip-session script
+  * Automatically changed default account after enrollment
+  * Added python-requests dependency
+
+ -- Adrian Georgescu <ag@ag-projects.com>  Fri, 15 Jan 2021 15:39:38 +0100
+
 sipclients (3.5.5) unstable; urgency=medium
 
   * Added sip2sip.info enrollment for sip-session script
